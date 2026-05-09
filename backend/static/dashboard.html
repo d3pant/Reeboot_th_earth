@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reeboot — Farm Fire Dashboard</title>
+  <title>Agripal — Farm Fire Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     :root {
@@ -43,6 +43,8 @@
     }
     .nav-tab:hover { background: var(--cream); color: var(--text); }
     .nav-tab.active { background: var(--green); color: #fff; }
+    .nav-tab svg { vertical-align: -1px; margin-right: 4px; opacity: 0.75; }
+    .nav-tab.active svg { opacity: 1; }
     #header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
     #threat-badge {
       display: flex; align-items: center; gap: 7px;
@@ -62,7 +64,7 @@
     /* ── Hero ── */
     #hero {
       display: grid; grid-template-columns: 1fr 380px;
-      gap: 0; height: calc(100vh - 56px - 70px);
+      gap: 0; height: calc(100vh - 56px);
       min-height: 480px; max-height: 700px;
     }
 
@@ -100,7 +102,7 @@
     #stats-panel {
       background: var(--cream); border-left: 1px solid var(--border);
       padding: 16px; display: flex; flex-direction: column; gap: 12px;
-      overflow-y: auto;
+      overflow-y: visible;
     }
     .stat-card {
       background: var(--card); border: 1px solid var(--border);
@@ -204,23 +206,7 @@
     .risk-expected-label { font-size: 11px; color: var(--fire); font-weight: 600; margin-bottom: 2px; }
     .risk-expected-val { font-size: 18px; font-weight: 700; color: var(--fire); }
 
-    /* ── Emergency bar ── */
-    #emergency-bar {
-      position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
-      background: var(--card); border-top: 1px solid var(--border);
-      padding: 12px 24px; display: flex; align-items: center; gap: 16px; height: 70px;
-    }
-    #emergency-btn {
-      display: flex; align-items: center; gap: 10px; padding: 10px 20px;
-      background: var(--fire); color: #fff; border: none; border-radius: 10px;
-      cursor: pointer; font-size: 14px; font-weight: 700; transition: all 0.15s;
-    }
-    #emergency-btn:hover { background: #a93226; }
-    .ebar-sep { width: 1px; height: 32px; background: var(--border); }
-    .ebar-action { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); cursor: pointer; padding: 8px 12px; border-radius: 8px; transition: all 0.15s; border: none; background: none; }
-    .ebar-action:hover { background: var(--cream); color: var(--text); }
-    .ebar-action:disabled { opacity: 0.4; cursor: not-allowed; }
-    .ebar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
+    #refresh-btn.spinning { opacity: 0.6; pointer-events: none; }
 
     /* Misc */
     .loading { color: var(--text3); font-style: italic; font-size: 13px; }
@@ -291,8 +277,7 @@
     /* Economics panel */
 
     /* Icon helpers */
-    .nav-tab svg { vertical-align: -1px; margin-right: 3px; }
-    .bc-icon svg { vertical-align: -2px; }
+.bc-icon svg { vertical-align: -2px; }
     .stat-label svg { vertical-align: -2px; margin-right: 3px; }
     .action-icon svg { display: block; }
   </style>
@@ -308,7 +293,7 @@
 
 <!-- ── Header ── -->
 <div id="header">
-  <a id="logo" href="/"><span>🌱</span> Reeboot</a>
+  <a id="logo" href="/">Agripal</a>
   <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
   <div id="farm-info-chip" style="display:flex;align-items:center;gap:8px;padding:4px 12px;background:var(--cream);border:1px solid var(--border);border-radius:20px;font-size:12px;">
     <span id="farm-name-hdr" style="font-weight:700;color:var(--text);">—</span>
@@ -318,15 +303,17 @@
     <span id="farm-pens-hdr" style="color:var(--text2);">— pens</span>
   </div>
   <nav id="nav">
-    <span class="nav-tab active" id="tab-overview" onclick="switchTab('overview')">🏠 Overview</span>
-    <span class="nav-tab" id="tab-livestock" onclick="switchTab('livestock')">🐄 Livestock</span>
-    <span class="nav-tab" id="tab-crop" onclick="switchTab('crop')">🌾 Crops</span>
-    <a class="nav-tab" href="/static/financial.html">💰 Financial</a>
-    <a class="nav-tab" href="/static/briefing.html">📋 Plan</a>
+    <span class="nav-tab active" id="tab-overview" onclick="switchTab('overview')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Overview</span>
+    <span class="nav-tab" id="tab-livestock" onclick="switchTab('livestock')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="5" x2="4" y2="19"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="20" y1="5" x2="20" y2="19"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="2" y1="15" x2="22" y2="15"/></svg> Livestock</span>
+    <span class="nav-tab" id="tab-crop" onclick="switchTab('crop')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg> Crops</span>
+    <a class="nav-tab" href="/static/financial.html"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Financial</a>
+    <a class="nav-tab" href="/static/briefing.html"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Action Plan</a>
   </nav>
   <div id="header-right">
-    <a id="map-link" href="/static/setup.html"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Farm Setup</a>
-    <div id="threat-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 3z"/></svg><span id="hdr-threat">Loading...</span></div>
+    <span id="last-updated" style="font-size:11px;color:var(--text3);"></span>
+    <button class="agent-run-btn" id="refresh-btn" onclick="refreshAll()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button>
+    <a id="map-link" href="/static/setup.html"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Farm Setup</a>
+    <div id="threat-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span id="hdr-threat">Loading...</span></div>
   </div>
 </div>
 
@@ -427,7 +414,7 @@
   <!-- Act Now (was Best Actions Right Now) -->
   <div class="bottom-card">
     <div class="bc-title" style="justify-content:space-between;">
-      <span><span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> Act Now</span>
+      <span>Act Now</span>
       <span style="font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;background:var(--cream);padding:3px 10px;border-radius:20px;letter-spacing:0;">See all</span>
     </div>
     <div id="actions-list"><div class="loading">Loading recommendations…</div></div>
@@ -436,7 +423,7 @@
 
   <!-- Your Farm (was What You Have) -->
   <div class="bottom-card">
-    <div class="bc-title"><span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> Your Farm</div>
+    <div class="bc-title">Your Farm</div>
     <div id="assets-list"><div class="loading">Loading farm data…</div></div>
     <div class="total-row">
       <span>Total farm value</span>
@@ -446,7 +433,7 @@
 
   <!-- What's at Risk -->
   <div class="bottom-card">
-    <div class="bc-title"><span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span> What's at Risk</div>
+    <div class="bc-title">What's at Risk</div>
     <div id="risk-breakdown"><div class="loading">Loading risk data…</div></div>
     <div class="risk-expected" id="risk-expected" style="display:none;">
       <div class="risk-expected-label" id="risk-exp-label">Expected loss at —% risk:</div>
@@ -460,56 +447,52 @@
 
 <!-- ── Crop Panel ── -->
 <div id="crop-panel" class="tab-panel" style="display:none;">
-  <h2>🌾 Crop Field Decisions</h2>
+  <h2>Crop Field Decisions</h2>
   <p class="sub">AI-generated field-by-field recommendations based on fire threat, maturity, and market prices.</p>
   <div id="crop-fields-list">
     <div class="loading" style="padding:20px 0;">Run the forecaster then click <b>🌾 Run Crop Agent</b> in the bar below to generate field decisions.</div>
   </div>
   <div id="crop-econ-summary" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
-    <div class="bc-title"><span>💰</span> Economic Impact</div>
+    <div class="bc-title">Economic Impact</div>
     <div id="crop-econ-content"></div>
   </div>
   <div id="crop-fire-reduction" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
-    <div class="bc-title"><span>🛡️</span> Field Protection Actions</div>
+    <div class="bc-title">Field Protection Actions</div>
     <div id="crop-fire-reduction-content"></div>
   </div>
   <div id="crop-hydration" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
-    <div class="bc-title"><span>💧</span> Hydration Strategy</div>
+    <div class="bc-title">Hydration Strategy</div>
     <div id="crop-hydration-content"></div>
   </div>
 </div>
 
 <!-- ── Livestock Panel ── -->
 <div id="livestock-panel" class="tab-panel">
-  <h2>🐄 Livestock Evacuation Plan</h2>
+  <h2>Livestock Evacuation Plan</h2>
   <p class="sub" style="font-size:13px;color:var(--text2);margin-bottom:20px;">Priority-ranked evacuation decisions for each pen based on fire threat, species, and route availability.</p>
   <div id="livestock-pens-list">
     <div class="loading" style="padding:20px 0;">Run the forecaster then click <b>🐄 Run Livestock</b> to generate evacuation plans.</div>
   </div>
   <div id="livestock-evac-summary" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
-    <div class="bc-title"><span>🚛</span> Transport Optimization</div>
+    <div class="bc-title">Transport Optimization</div>
     <div id="livestock-evac-content"></div>
   </div>
   <div id="livestock-evac-sequence" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
-    <div class="bc-title"><span>📋</span> Evacuation Order</div>
+    <div class="bc-title">Evacuation Order</div>
     <div id="livestock-evac-sequence-content"></div>
   </div>
   <div id="livestock-transport-pool" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
-    <div class="bc-title"><span>🤝</span> Neighbor Transport Pooling</div>
+    <div class="bc-title">Neighbor Transport Pooling</div>
     <div id="livestock-transport-pool-content"></div>
   </div>
 </div>
 
 
-<!-- ── Emergency bar ── -->
-<div id="emergency-bar">
-  <button id="emergency-btn">🚨 <div><div>Emergency mode</div><div style="font-size:11px;font-weight:400;opacity:0.85;">Get help now</div></div></button>
-  <div class="ebar-sep"></div>
-  <button class="ebar-action" id="run-forecaster-btn" onclick="runForecaster()" style="display:none;"></button>
-  <button class="ebar-action" id="run-livestock-btn" onclick="runLivestock()" style="display:none;"></button>
-  <button class="ebar-action" id="run-crop-btn" onclick="runCrop()" style="display:none;"></button>
-  <button class="ebar-action" onclick="refreshAll()">↻ Refresh all agents</button>
-  <div class="ebar-right" id="last-updated">Last updated: —</div>
+<!-- hidden agent-runner state holders -->
+<div style="display:none;">
+  <button id="run-forecaster-btn"></button>
+  <button id="run-livestock-btn"></button>
+  <button id="run-crop-btn"></button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -618,7 +601,7 @@ function renderHeader() {
     document.getElementById("farm-name-hdr").textContent = prof.farm_name || "Your Farm";
     document.getElementById("farm-acres-hdr").textContent = (prof.total_acres || "—") + " ac";
     document.getElementById("farm-pens-hdr").textContent = (prof.pens?.length || "—") + " pen" + (prof.pens?.length !== 1 ? "s" : "");
-    document.title = `${prof.farm_name} — Reeboot Dashboard`;
+    document.title = `${prof.farm_name} — Agripal`;
   }
 }
 
@@ -885,10 +868,6 @@ function renderAssets() {
     </div>`);
   });
 
-  // Machinery + infrastructure estimate
-  const infraVal = (forecastData?.total_acres || 100) * 800;
-  total += infraVal;
-  rows.push(`<div class="asset-row"><div class="asset-emoji">🚜</div><div class="asset-name">Machinery & Equipment</div><div class="asset-val">${fmt$(infraVal)}</div></div>`);
 
   el.innerHTML = rows.join("") || '<div class="loading">No data yet — run forecaster</div>';
   document.getElementById("total-farm-value").textContent = fmt$(total);
@@ -1198,17 +1177,15 @@ function renderCropPanel() {
   const fireRedData = cropData?.fire_reduction || [];
   if (fireRedData.length) {
     frEl.style.display = "block";
-    const ACT_ICON = { CLEAR:"🌾", FIREBREAK:"🛡️", MONITOR:"👁️", IRRIGATE:"💧" };
     document.getElementById("crop-fire-reduction-content").innerHTML = fireRedData.map(r =>
       `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
-        <div style="font-size:22px;">${ACT_ICON[r.action]||"🛡️"}</div>
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:600;">${r.action} · Field ${r.field_id}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px;">${r.uprooting_strategy?.method || ""}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">Flammability ${r.flammability} · Fuel load ${r.fuel_load} · Wind factor ${r.wind_factor}x · Priority score ${r.priority_score}</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:12px;font-weight:700;color:${r.feasible_with_farm_resources?"var(--green)":"var(--fire)"};">${r.feasible_with_farm_resources?"✅ Feasible":"❌ Needs help"}</div>
+          <div style="font-size:12px;font-weight:700;color:${r.feasible_with_farm_resources?"var(--green)":"var(--fire)"};">${r.feasible_with_farm_resources?"Feasible":"Needs help"}</div>
           <div style="font-size:11px;color:var(--text3);">Rank #${r.rank}</div>
         </div>
       </div>`
@@ -1223,7 +1200,6 @@ function renderCropPanel() {
     const URG_COLOR = { IMMEDIATE:"var(--fire)", HIGH:"var(--orange)", SCHEDULED:"var(--amber)", MONITOR:"var(--green2)" };
     document.getElementById("crop-hydration-content").innerHTML = hydData.map(h =>
       `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
-        <div style="font-size:22px;">💧</div>
         <div style="flex:1;">
           <div style="font-size:14px;font-weight:600;">${h.technique} · Field ${h.field_id}</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px;">${h.reason}</div>
@@ -1348,8 +1324,8 @@ function renderLivestockPanel() {
 }
 
 async function refreshAll() {
-  const btn = document.querySelector('.ebar-action[onclick="refreshAll()"]');
-  if (btn) { btn.disabled = true; btn.textContent = "⏳ Running pipeline..."; }
+  const btn = document.getElementById("refresh-btn");
+  if (btn) { btn.disabled = true; btn.innerHTML = "Refreshing…"; btn.classList.add("spinning"); }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 240000);
   try {
@@ -1367,13 +1343,18 @@ async function refreshAll() {
     alert("Pipeline: " + (e.name === "AbortError" ? "timed out after 240s" : e.message));
   } finally {
     clearTimeout(timer);
-    if (btn) { btn.disabled = false; btn.textContent = "↻ Refresh all agents"; }
+    if (btn) {
+      btn.disabled = false; btn.classList.remove("spinning");
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh`;
+    }
   }
 }
 
-// Boot
+// Boot — switch tab immediately so there's no overview flash when navigating from other pages
+const _earlyTab = new URLSearchParams(window.location.search).get("tab");
+if (_earlyTab) switchTab(_earlyTab);
+
 loadAll().then(() => {
-  // Switch to tab specified in ?tab= query param (used by financial.html nav links)
   const tabParam = new URLSearchParams(window.location.search).get("tab");
   if (tabParam) { switchTab(tabParam); history.replaceState({}, "", window.location.pathname); }
 
