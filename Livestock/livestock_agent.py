@@ -2,11 +2,15 @@ import asyncio
 import json
 import logging
 import math
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / "crop_agent" / ".env")
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -202,14 +206,13 @@ async def fetch_usda_prices(client: httpx.AsyncClient) -> Dict[str, float]:
         prices = {}
         for species, commodity in commodities.items():
             try:
-                url = "https://quickstats.nass.usda.gov/api/api_GET"
+                url = "https://quickstats.nass.usda.gov/api/api_GET/"
                 params = {
-                    "key": "your_api_key_here",  # Public queries work without key
+                    "key": os.getenv("USDA_NASS_API_KEY", ""),
                     "commodity_desc": commodity,
-                    "data_item": f"{commodity}, PRICE RECEIVED",
-                    "geographic_level": "US",
-                    "year__GE": 2023,
-                    "format": "json"
+                    "statisticcat_desc": "PRICE RECEIVED",
+                    "year": str(datetime.now().year - 1),
+                    "format": "JSON"
                 }
                 response = await client.get(url, params=params, timeout=5.0)
                 if response.status_code == 200:
@@ -647,8 +650,6 @@ async def main():
             json.dump(erpc_message, f, indent=2)
 
         logger.info(f"Cycle complete. Animals at risk: {total_animals_at_risk} USD. Moved: {animals_moved}, Remaining: {animals_remaining}")
-
-        await asyncio.sleep(status["next_update_minutes"] * 60)
 
 
 if __name__ == "__main__":
