@@ -49,6 +49,7 @@ You receive SEVEN inputs:
   7. FIELD FLAMMABILITY DATA JSON — per-field flammability score (1–5) from LANDFIRE FBFM40 fuel model
 
 Use ONLY the actual values provided. Never invent values. Pre-calculate all arithmetic — never write expressions like "342400 + 4068.9".
+CRITICAL: Output decisions ONLY for field_ids listed in FARM FIELDS. Do not add, invent, or assume any additional fields.
 
 OUTPUT: Return a single valid JSON object with exactly these four keys:
   "field_decisions", "fire_reduction", "economic_impact", "hydration_strategy"
@@ -330,6 +331,18 @@ def run_crop_agent(wildfire_status: dict, farm_fields: dict) -> None:
 
     # ── Parse + save ──────────────────────────────────────────────────────────
     parsed = parse_llm_json(raw)
+
+    # Strip any field_ids the LLM hallucinated that don't exist in farm_fields
+    valid_ids = {f["field_id"] for f in farm_fields.get("fields", [])}
+    if parsed and valid_ids:
+        for key in ("field_decisions", "fire_reduction", "hydration_strategy"):
+            if isinstance(parsed.get(key), list):
+                parsed[key] = [r for r in parsed[key] if r.get("field_id") in valid_ids]
+        econ = parsed.get("economic_impact", {})
+        if isinstance(econ.get("crop_destructions"), list):
+            econ["crop_destructions"] = [
+                r for r in econ["crop_destructions"] if r.get("field_id") in valid_ids
+            ]
 
     print(f"\n{'='*60}")
     print("CROP AGENT OUTPUT")

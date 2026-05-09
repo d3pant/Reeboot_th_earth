@@ -1,36 +1,16 @@
 {
   "farm_id": "farm_001",
-  "farm_name": "modi farms",
+  "farm_name": "hh",
   "fields": [
     {
       "field_id": "F1",
       "crop_category": "avocado",
       "location": {
-        "lat": 33.2262,
-        "lon": -117.1631
+        "lat": 33.2164,
+        "lon": -117.2783
       },
       "size_acres": 20.0,
       "planting_date": "2023-01-01"
-    },
-    {
-      "field_id": "F2",
-      "crop_category": "corn",
-      "location": {
-        "lat": 33.2232,
-        "lon": -117.1591
-      },
-      "size_acres": 10.0,
-      "planting_date": "2026-05-09"
-    },
-    {
-      "field_id": "F3",
-      "crop_category": "wheat",
-      "location": {
-        "lat": 33.2202,
-        "lon": -117.1631
-      },
-      "size_acres": 10.0,
-      "planting_date": "2026-05-09"
     }
   ]
 }

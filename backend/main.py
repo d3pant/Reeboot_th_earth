@@ -658,6 +658,25 @@ async def run_livestock_agent():
 # Crop endpoints
 # ---------------------------------------------------------------------------
 
+def _filter_crop_output_to_farm(data: dict) -> dict:
+    """Remove hallucinated fields not in current farm_fields.json."""
+    fields_path = CROP_DIR_CFG / "farm_fields.json"
+    if not fields_path.exists():
+        return data
+    with open(fields_path) as f:
+        farm = json.load(f)
+    valid_ids = {fld["field_id"] for fld in farm.get("fields", [])}
+    if not valid_ids:
+        return data
+    for key in ("field_decisions", "fire_reduction", "hydration_strategy"):
+        if isinstance(data.get(key), list):
+            data[key] = [r for r in data[key] if r.get("field_id") in valid_ids]
+    econ = data.get("economic_impact", {})
+    if isinstance(econ.get("crop_destructions"), list):
+        econ["crop_destructions"] = [r for r in econ["crop_destructions"] if r.get("field_id") in valid_ids]
+    return data
+
+
 @app.get("/api/crop/status")
 def get_crop_status():
     """Return the latest crop agent output."""
@@ -671,7 +690,7 @@ def get_crop_status():
     if erpc.exists():
         with open(erpc) as f:
             data["erpc_output"] = json.load(f)
-    return JSONResponse(data)
+    return JSONResponse(_filter_crop_output_to_farm(data))
 
 
 @app.post("/api/crop/run")
@@ -704,7 +723,7 @@ async def run_crop_agent():
             if erpc.exists():
                 with open(erpc) as f:
                     data["erpc_output"] = json.load(f)
-            return JSONResponse(data)
+            return JSONResponse(_filter_crop_output_to_farm(data))
         detail = proc.stderr[-500:] if proc.stderr else proc.stdout[-500:] or "No output produced"
         raise HTTPException(status_code=500, detail=detail)
     except subprocess.TimeoutExpired:
