@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Agripal — Financial Overview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -25,7 +28,7 @@
       --shadow:       0 2px 12px rgba(0,0,0,0.07);
     }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); }
 
     /* ── Header ── */
     #header {
@@ -296,9 +299,35 @@
       .ins-body { grid-template-columns: 1fr; }
       .ins-meta-grid { grid-template-columns: 1fr; }
     }
+
+    /* ── Big number typography ── */
+    .kpi-val { font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+    #logo { font-weight: 800; letter-spacing: -0.02em; }
+
+    /* ── Animated film-grain overlay ── */
+    @keyframes grain {
+      0%   { background-position:   0%   0% }
+      10%  { background-position:  40%  30% }
+      20%  { background-position:  80%  10% }
+      30%  { background-position:  20%  70% }
+      40%  { background-position:  60%  50% }
+      50%  { background-position:  10%  90% }
+      60%  { background-position:  70%  20% }
+      70%  { background-position:  30%  60% }
+      80%  { background-position:  90%  40% }
+      90%  { background-position:  50%  80% }
+      100% { background-position:   0%   0% }
+    }
+    #grain-overlay {
+      position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='gf'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23gf)'/%3E%3C/svg%3E");
+      background-repeat: repeat; background-size: 180px 180px;
+      opacity: 0.14; animation: grain 0.4s steps(1) infinite;
+    }
   </style>
 </head>
 <body>
+<div id="grain-overlay"></div>
 
 <!-- ── Setup-incomplete banner ── -->
 <div id="setup-banner" style="display:none;position:sticky;top:0;z-index:1500;background:#fef9c3;color:#854d0e;border-bottom:1px solid #f3e07d;padding:10px 24px;font-size:13px;font-weight:600;text-align:center;">

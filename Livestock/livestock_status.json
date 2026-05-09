@@ -1,23 +1,23 @@
 {
-  "timestamp": "2026-05-09T08:48:17.950703+00:00",
+  "timestamp": "2026-05-09T17:30:40.170253+00:00",
   "threat_level": "CRITICAL",
   "phase": "execute_movement",
   "pens": [
     {
       "pen_id": "pen_001",
-      "lat": 33.21447,
-      "lon": -117.27674,
+      "lat": 32.73267,
+      "lon": -116.73504,
       "species": "cattle",
       "priority_score": 66.5,
       "decision": "evacuate",
-      "decision_reason": "Safe evacuation possible within 0.5h",
+      "decision_reason": "Safe evacuation possible within 1.4h",
       "assigned_evac_site": {
         "name": "Del Mar Fairgrounds",
         "lat": 32.9595,
         "lon": -117.2653,
-        "distance_km": 36.845
+        "distance_km": 72.2548
       },
-      "route_duration_hours": 0.5417777777777778,
+      "route_duration_hours": 1.3535277777777777,
       "route_source": "osrm",
       "smoke_penalty_applied": false,
       "assigned_vehicle": null,
@@ -29,8 +29,8 @@
     "transport_capacity": {
       "vehicles": 2,
       "capacity_per_vehicle": 100,
-      "trips_per_trailer": 10,
-      "total_capacity": 2000
+      "trips_per_trailer": 4,
+      "total_capacity": 800
     },
     "evacuation_sequence": [
       {
@@ -42,7 +42,7 @@
         "animals_saved": 50,
         "value_saved_usd": 72500,
         "status": "EVACUATE",
-        "reason": "score 0.98 | $1,450/head | 0.5h route"
+        "reason": "score 0.95 | $1,450/head | 1.4h route"
       }
     ],
     "summary": {

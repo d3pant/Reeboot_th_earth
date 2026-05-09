@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Agripal — Farm Fire Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     :root {
@@ -24,7 +27,7 @@
       --shadow:  0 2px 12px rgba(0,0,0,0.07);
     }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); overflow-x: hidden; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); overflow-x: hidden; }
 
     /* ── Header ── */
     #header {
@@ -33,7 +36,7 @@
       padding: 0 24px; height: 56px;
       display: flex; align-items: center; gap: 8px;
     }
-    #logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--green); text-decoration: none; }
+    #logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; color: var(--green); text-decoration: none; letter-spacing: -0.02em; }
     #logo span { font-size: 22px; }
     #nav { display: flex; gap: 2px; margin-left: 20px; }
     .nav-tab {
@@ -63,9 +66,9 @@
 
     /* ── Hero ── */
     #hero {
-      display: grid; grid-template-columns: 1fr 380px;
-      gap: 0; height: calc(100vh - 56px);
-      min-height: 480px; max-height: 700px;
+      display: grid; grid-template-columns: 1fr 400px;
+      gap: 0; height: calc(100vh - 56px - 220px);
+      min-height: 420px; max-height: none;
     }
 
     /* ── Map panel ── */
@@ -98,42 +101,93 @@
       display: none; align-items: center; gap: 8px; white-space: nowrap;
     }
 
-    /* ── Stats panel ── */
+    /* ── Stats panel (display-first redesign) ── */
     #stats-panel {
-      background: var(--cream); border-left: 1px solid var(--border);
-      padding: 16px; display: flex; flex-direction: column; justify-content: space-between;
-      overflow-y: visible;
+      background: var(--card); border-left: 1px solid var(--border);
+      padding: 32px 28px; display: flex; flex-direction: column; gap: 0;
+      overflow-y: auto; position: relative;
     }
-    .stat-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 16px 18px;
-      box-shadow: var(--shadow);
-    }
-    .stat-label { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-    .stat-big { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
-    .stat-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
 
-    /* Fire risk card */
-    #risk-card { display: flex; justify-content: space-between; align-items: center; }
+    /* Animated film-grain overlay */
+    @keyframes grain {
+      0%   { background-position:   0%   0% }
+      10%  { background-position:  40%  30% }
+      20%  { background-position:  80%  10% }
+      30%  { background-position:  20%  70% }
+      40%  { background-position:  60%  50% }
+      50%  { background-position:  10%  90% }
+      60%  { background-position:  70%  20% }
+      70%  { background-position:  30%  60% }
+      80%  { background-position:  90%  40% }
+      90%  { background-position:  50%  80% }
+      100% { background-position:   0%   0% }
+    }
+    #grain-overlay {
+      position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='gf'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23gf)'/%3E%3C/svg%3E");
+      background-repeat: repeat; background-size: 180px 180px;
+      opacity: 0.14;
+      animation: grain 0.4s steps(1) infinite;
+    }
+
+    /* Threat hero block */
+    #threat-hero-section { padding-bottom: 28px; }
+    .sp-micro-label {
+      font-size: 10px; font-weight: 800; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--text3); margin-bottom: 10px;
+    }
+    #threat-display {
+      font-size: 48px; font-weight: 900; letter-spacing: -0.04em;
+      line-height: 1; color: var(--fire); margin-bottom: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+    .sp-sub { font-size: 13px; color: var(--text2); line-height: 1.4; }
+    .sp-divider { height: 1px; background: var(--border); margin: 0 -28px; }
+
+    /* Risk row (gauge + pct) */
+    #risk-card { display: flex; justify-content: space-between; align-items: center; padding: 24px 0; }
+    #risk-left {}
+    .stat-label { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+    .stat-big { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .stat-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
     #risk-left .stat-big { color: var(--fire); }
-    #risk-level { font-weight: 700; font-size: 13px; }
+    #risk-level { font-weight: 700; font-size: 13px; margin-top: 2px; }
     #risk-gauge { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
     #risk-gauge svg { transform: rotate(-90deg); }
     #gauge-track { fill: none; stroke: #f0ede8; stroke-width: 7; }
     #gauge-fill  { fill: none; stroke: var(--fire); stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
     #gauge-icon  { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 22px; }
 
-    /* Money card */
+    /* Key numbers grid */
+    .sp-metrics-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 24px 0;
+    }
+    .sp-metric {}
+    .sp-metric + .sp-metric { padding-left: 20px; border-left: 1px solid var(--border); }
+    .sp-metric-big {
+      font-size: 34px; font-weight: 900; letter-spacing: -0.04em; line-height: 1.1;
+      color: var(--text); margin: 8px 0 4px; font-variant-numeric: tabular-nums;
+    }
+    .sp-metric-sub { font-size: 11px; color: var(--text3); }
+
+    /* Environmental row */
+    .sp-env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 24px 0 0; }
+    .sp-env-item {}
+    .sp-env-item + .sp-env-item { padding-left: 20px; border-left: 1px solid var(--border); }
+    .sp-env-val { font-size: 17px; font-weight: 700; color: var(--text); margin: 8px 0 4px; line-height: 1.3; letter-spacing: -0.02em; }
+    .sp-env-sub { font-size: 11px; color: var(--text3); }
+
+    /* Legacy compat */
+    .stat-card { background: transparent; border: none; border-radius: 0; padding: 0; box-shadow: none; }
     .money-card { cursor: pointer; }
-    .money-card:hover { }
     .chevron { color: var(--text3); font-size: 14px; float: right; margin-top: 2px; }
 
     /* ── Timeline ── */
     #timeline {
       background: var(--card); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-      padding: 12px 24px; display: flex; align-items: center; gap: 16px;
+      padding: 14px 28px; display: flex; align-items: center; gap: 16px;
     }
-    #timeline-label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+    #timeline-label { font-size: 13px; font-weight: 700; white-space: nowrap; letter-spacing: -0.01em; }
     #timeline-sub { font-size: 11px; color: var(--text3); }
     #play-btn {
       width: 36px; height: 36px; border-radius: 50%; background: var(--green);
@@ -146,16 +200,16 @@
     /* ── Bottom grid ── */
     #bottom {
       display: grid; grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px; padding: 20px 24px; background: var(--cream);
+      gap: 20px; padding: 24px 28px; background: var(--cream);
     }
     .bottom-card {
       background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 18px 20px;
-      box-shadow: var(--shadow);
+      border-radius: 18px; padding: 24px 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
     }
     .bc-title {
-      font-size: 11px; font-weight: 800; color: var(--green); letter-spacing: 0.1em;
-      text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 7px;
+      font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.18em;
+      text-transform: uppercase; margin-bottom: 20px; display: flex; align-items: center; gap: 7px;
     }
     .bc-title .bc-icon { font-size: 14px; }
 
@@ -165,7 +219,7 @@
     .asset-emoji { font-size: 18px; width: 28px; flex-shrink: 0; }
     .asset-name { flex: 1; font-size: 13px; color: var(--text2); }
     .asset-val { font-size: 13px; font-weight: 600; color: var(--text); }
-    .total-row { display: flex; justify-content: space-between; padding-top: 12px; border-top: 2px solid var(--border); margin-top: 4px; font-weight: 700; font-size: 14px; }
+    /* .total-row defined above in bottom card section */
 
     /* Best Actions */
     .action-row {
@@ -187,8 +241,11 @@
       font-size: 12px; color: var(--green); font-weight: 500;
     }
 
+    /* Bottom card section titles (bigger, more PrismaHero-like) */
+    .total-row { display: flex; justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--border); margin-top: 8px; font-weight: 700; font-size: 14px; }
+
     /* What's at Risk */
-    .risk-row { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .risk-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
     .risk-row:last-of-type { border-bottom: none; }
     .risk-row-top { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .risk-name { font-size: 12px; color: var(--text2); }
@@ -283,6 +340,7 @@
   </style>
 </head>
 <body>
+<div id="grain-overlay"></div>
 
 <!-- ── Setup-incomplete banner (hidden by default; shown if /api/setup/status returns incomplete) ── -->
 <div id="setup-banner" style="display:none;position:sticky;top:0;z-index:1500;background:#fef9c3;color:#854d0e;border-bottom:1px solid #f3e07d;padding:10px 24px;font-size:13px;font-weight:600;text-align:center;">
@@ -346,52 +404,61 @@
   <!-- Stats panel -->
   <div id="stats-panel">
 
-    <!-- Fire Risk -->
-    <div class="stat-card" id="risk-card">
+    <!-- Threat hero -->
+    <div id="threat-hero-section">
+      <div class="sp-micro-label">Threat Level</div>
+      <div id="threat-display">—</div>
+      <div class="sp-sub" id="risk-sub">Checking fire data...</div>
+    </div>
+
+    <div class="sp-divider"></div>
+
+    <!-- Risk gauge row -->
+    <div id="risk-card">
       <div id="risk-left">
-        <div class="stat-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Fire Risk</div>
+        <div class="sp-micro-label">Fire Risk Score</div>
         <div class="stat-big" id="risk-pct">—%</div>
-        <div id="risk-level" style="color:var(--fire);margin-top:2px;">—</div>
-        <div class="stat-sub" id="risk-sub">—</div>
+        <div id="risk-level" style="color:var(--fire);">—</div>
       </div>
       <div id="risk-gauge">
         <svg width="72" height="72" viewBox="0 0 72 72">
-          <circle class="" id="gauge-track" cx="36" cy="36" r="28"/>
+          <circle id="gauge-track" cx="36" cy="36" r="28"/>
           <circle id="gauge-fill" cx="36" cy="36" r="28" stroke-dasharray="175.9" stroke-dashoffset="175.9"/>
         </svg>
         <div id="gauge-icon">🔥</div>
       </div>
     </div>
 
-    <!-- Money at risk -->
-    <div class="stat-card money-card" onclick="scrollToBottom()">
-      <div class="stat-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Money You Could Lose <span class="chevron">›</span></div>
-      <div class="stat-big" id="money-loss" style="color:var(--fire);">$—</div>
-      <div class="stat-sub">If no action taken</div>
-    </div>
+    <div class="sp-divider"></div>
 
-    <!-- Time to reach -->
-    <div class="stat-card money-card" onclick="scrollToBottom()">
-      <div class="stat-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Fire Could Reach You In <span class="chevron">›</span></div>
-      <div class="stat-big" id="time-reach" style="color:var(--text);">—h</div>
-      <div class="stat-sub" id="time-reach-sub">At current wind speed</div>
-    </div>
-
-    <!-- Wind now -->
-    <div class="stat-card money-card">
-      <div class="stat-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg> Wind Right Now <span class="chevron">›</span></div>
-      <div class="stat-big" style="font-size:20px;padding-top:4px;" id="wind-now">— km/h</div>
-      <div class="stat-sub" id="wind-sub">—</div>
-    </div>
-
-    <!-- FWI -->
-    <div class="stat-card">
-      <div class="stat-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg> Fire Weather Index</div>
-      <div style="display:flex;align-items:baseline;gap:8px;">
-        <div class="stat-big" style="font-size:28px;" id="fwi-val">—</div>
-        <div id="fwi-level" style="font-size:13px;font-weight:600;color:var(--text2);">—</div>
+    <!-- Key numbers -->
+    <div class="sp-metrics-grid">
+      <div class="sp-metric">
+        <div class="sp-micro-label">Reaches You In</div>
+        <div class="sp-metric-big" id="time-reach" style="color:var(--text);">—</div>
+        <div class="sp-metric-sub" id="time-reach-sub">At current wind</div>
       </div>
-      <div class="stat-sub">Humidity <span id="humidity-val">—</span>% · Temp <span id="temp-val">—</span>°C</div>
+      <div class="sp-metric">
+        <div class="sp-micro-label">Money at Risk</div>
+        <div class="sp-metric-big" id="money-loss" style="color:var(--fire);">$—</div>
+        <div class="sp-metric-sub">If no action taken</div>
+      </div>
+    </div>
+
+    <div class="sp-divider"></div>
+
+    <!-- Environmental row -->
+    <div class="sp-env-grid">
+      <div class="sp-env-item">
+        <div class="sp-micro-label">Wind</div>
+        <div class="sp-env-val" id="wind-now">— km/h</div>
+        <div class="sp-env-sub" id="wind-sub">—</div>
+      </div>
+      <div class="sp-env-item">
+        <div class="sp-micro-label">Fire Weather Index</div>
+        <div class="sp-env-val"><span id="fwi-val">—</span> <span id="fwi-level" style="font-size:12px;font-weight:600;">—</span></div>
+        <div class="sp-env-sub">Humidity <span id="humidity-val">—</span>% · <span id="temp-val">—</span>°C</div>
+      </div>
     </div>
 
   </div>
@@ -587,6 +654,9 @@ function renderAll() {
 function renderHeader() {
   const level = forecastData?.threat_level || "UNKNOWN";
   document.getElementById("hdr-threat").textContent = `${level} Threat`;
+  if (!forecastData) {
+    document.getElementById("threat-display").textContent = "—";
+  }
   const badge = document.getElementById("threat-badge");
   const colors = { GREEN:"#2d6a4f", WATCH:"#e67e22", WARNING:"#e67e22", CRITICAL:"#c0392b", EMERGENCY:"#9b1c1c" };
   badge.style.color = colors[level] || "#666";
@@ -612,12 +682,19 @@ function renderStatCards() {
   const sp = f.spread_prediction || {};
   const meta = THREAT_META[f.threat_level] || THREAT_META.GREEN;
 
+  // Threat display (big hero text)
+  const THREAT_DISPLAY = { GREEN:"Low Risk", WATCH:"Watch", WARNING:"Warning", CRITICAL:"Critical", EMERGENCY:"Emergency" };
+  const tdEl = document.getElementById("threat-display");
+  tdEl.textContent = THREAT_DISPLAY[f.threat_level] || f.threat_level || "—";
+  tdEl.style.color = meta.color;
+
   // Risk gauge
   document.getElementById("risk-pct").textContent = meta.pct + "%";
   document.getElementById("risk-pct").style.color = meta.color;
   document.getElementById("risk-level").textContent = meta.label;
   document.getElementById("risk-level").style.color = meta.color;
-  document.getElementById("risk-sub").textContent = `${f.nearest_fire?.distance_km?.toFixed(1) || "—"} km away`;
+  const distKm = f.nearest_fire?.distance_km?.toFixed(1) || "—";
+  document.getElementById("risk-sub").textContent = `Nearest fire ${distKm} km from your farm`;
   const circ = 2 * Math.PI * 28;
   const offset = circ * (1 - meta.pct / 100);
   document.getElementById("gauge-fill").style.strokeDashoffset = offset;
