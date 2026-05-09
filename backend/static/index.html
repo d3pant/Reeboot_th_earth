@@ -170,13 +170,32 @@
   <button id="refresh-btn" onclick="loadFires()">↻ Refresh</button>
   <button id="pick-btn" onclick="togglePickMode()">📍 Set Location</button>
   <button id="forecaster-btn" onclick="runForecaster()">⚡ Run Forecaster</button>
-  <button id="livestock-btn" onclick="runLivestock()" style="font-size: 12px; background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #86efac; padding: 5px 14px; border-radius: 6px; cursor: pointer; transition: all 0.15s; font-weight: 600;">🐄 Livestock</button>
+  <button id="livestock-btn" onclick="runLivestock()" style="font-size:12px;background:rgba(34,197,94,0.2);border:1px solid rgba(34,197,94,0.5);color:#86efac;padding:5px 14px;border-radius:6px;cursor:pointer;transition:all 0.15s;font-weight:600;">🐄 Livestock</button>
+  <button id="crop-btn" onclick="runCrop()" style="font-size:12px;background:rgba(234,179,8,0.2);border:1px solid rgba(234,179,8,0.5);color:#fcd34d;padding:5px 14px;border-radius:6px;cursor:pointer;transition:all 0.15s;font-weight:600;">🌾 Crop</button>
   <div id="farm-status"></div>
   <div id="fwi-badge"></div>
 </div>
 
 <div id="map"></div>
 <div id="pick-hint">Click anywhere on the map to set your location</div>
+
+<!-- Crop Agent Results Overlay -->
+<div id="crop-overlay" style="display:none;position:fixed;bottom:20px;right:16px;z-index:998;width:420px;max-height:60vh;overflow-y:auto;background:rgba(10,10,10,0.95);backdrop-filter:blur(12px);border:1px solid rgba(234,179,8,0.25);border-radius:12px;font-size:12px;">
+  <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06);position:sticky;top:0;background:rgba(10,10,10,0.97);">
+    <span style="font-size:11px;font-weight:700;color:#fcd34d;letter-spacing:0.1em;text-transform:uppercase;">🌾 Crop Agent Decisions</span>
+    <button onclick="document.getElementById('crop-overlay').style.display='none'" style="background:none;border:none;color:#555;cursor:pointer;font-size:15px;">✕</button>
+  </div>
+  <div id="crop-content" style="padding:12px 16px;"></div>
+</div>
+
+<!-- Livestock Summary Overlay -->
+<div id="livestock-overlay" style="display:none;position:fixed;bottom:20px;right:450px;z-index:997;width:300px;background:rgba(10,10,10,0.95);backdrop-filter:blur(12px);border:1px solid rgba(34,197,94,0.25);border-radius:12px;font-size:12px;">
+  <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06);">
+    <span style="font-size:11px;font-weight:700;color:#86efac;letter-spacing:0.1em;text-transform:uppercase;">🐄 Livestock Evacuation</span>
+    <button onclick="document.getElementById('livestock-overlay').style.display='none'" style="background:none;border:none;color:#555;cursor:pointer;font-size:15px;">✕</button>
+  </div>
+  <div id="livestock-content" style="padding:12px 16px;"></div>
+</div>
 
 <!-- Detail Panel -->
 <div id="panel">
@@ -603,68 +622,146 @@
   const livestockLayer = L.layerGroup().addTo(map);
   const livestockSpeciesColors = { cattle: "#dc2626", horse: "#ea580c", sheep: "#2563eb", pig: "#9333ea", goat: "#16a34a" };
 
+  function renderLivestockOverlay(data) {
+    const el = document.getElementById("livestock-content");
+    const pens = data.pens || [];
+    const evac = pens.filter(p => p.decision === "evacuate");
+    const cant = pens.filter(p => p.decision !== "evacuate");
+
+    el.innerHTML = `
+      <div style="margin-bottom:10px;color:#aaa">Phase: <strong style="color:#fff">${data.phase || "—"}</strong> &nbsp;|&nbsp; Threat: <strong style="color:#ff3333">${data.threat_level || "—"}</strong></div>
+      ${pens.map(p => {
+        const c = livestockSpeciesColors[p.species] || "#999";
+        const ok = p.decision === "evacuate";
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="color:#fff;font-weight:600;">${p.pen_id} <span style="color:#666;font-weight:400;">${p.species}</span></div>
+            <div style="color:#555;font-size:10px;">${p.assigned_evac_site ? p.assigned_evac_site.name : "no site"} · ${p.route_duration_hours ? p.route_duration_hours.toFixed(1)+"h" : "—"}</div>
+          </div>
+          <div style="font-size:10px;font-weight:700;color:${ok?"#10b981":"#ef4444"};text-transform:uppercase;">${p.decision.replace("_"," ")}</div>
+          <div style="font-size:10px;color:#666;">${p.priority_score?.toFixed(0) || "—"}/100</div>
+        </div>`;
+      }).join("")}`;
+    document.getElementById("livestock-overlay").style.display = "block";
+  }
+
   async function loadLivestock() {
     try {
       const res = await fetch("/api/livestock/status");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-
       livestockLayer.clearLayers();
-
       if (data.pens && Array.isArray(data.pens)) {
         data.pens.forEach(pen => {
           try {
             L.circleMarker([pen.lat, pen.lon], {
-              radius: 8,
-              fillColor: livestockSpeciesColors[pen.species] || "#999",
+              radius: 8, fillColor: livestockSpeciesColors[pen.species] || "#999",
               color: pen.decision === "evacuate" ? "#10b981" : "#ef4444",
-              weight: 2,
-              opacity: 1,
-              fillOpacity: 0.8,
-            }).addTo(livestockLayer).bindPopup(`${pen.pen_id} (${pen.species})<br>Priority: ${pen.priority_score.toFixed(1)}/100<br>${pen.decision.toUpperCase()}`);
-
-            // Draw route to evac site
+              weight: 2, opacity: 1, fillOpacity: 0.8,
+            }).addTo(livestockLayer)
+              .bindPopup(`<b>${pen.pen_id}</b> (${pen.species})<br>Priority: ${pen.priority_score?.toFixed(1)}/100<br><b>${pen.decision.toUpperCase()}</b>`);
             if (pen.assigned_evac_site) {
               L.polyline([[pen.lat, pen.lon], [pen.assigned_evac_site.lat, pen.assigned_evac_site.lon]], {
-                color: livestockSpeciesColors[pen.species],
-                weight: 3,
-                opacity: 0.5,
-                dashArray: "4,4",
+                color: livestockSpeciesColors[pen.species], weight: 2, opacity: 0.6, dashArray: "5,5", interactive: false,
               }).addTo(livestockLayer);
-
               L.circleMarker([pen.assigned_evac_site.lat, pen.assigned_evac_site.lon], {
-                radius: 12,
-                fillColor: "#10b981",
-                color: "#047857",
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.6,
+                radius: 10, fillColor: "#10b981", color: "#047857", weight: 2, fillOpacity: 0.5, interactive: false,
               }).addTo(livestockLayer).bindPopup(pen.assigned_evac_site.name);
             }
-          } catch (pe) {
-            console.warn("Pen error:", pe);
-          }
+          } catch (pe) { console.warn("Pen error:", pe); }
         });
       }
-    } catch (e) {
-      console.error("Livestock error:", e);
-    }
+      renderLivestockOverlay(data);
+    } catch (e) { console.error("Livestock load error:", e); }
   }
 
   async function runLivestock() {
     const btn = document.getElementById("livestock-btn");
-    btn.disabled = true;
-    btn.textContent = "⏳ Running...";
+    btn.disabled = true; btn.textContent = "⏳ Running...";
     try {
-      await fetch("/api/livestock/run", { method: "POST" });
-      await loadLivestock();
-    } catch (e) {
-      console.error("Livestock run error:", e);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "🐄 Livestock";
-    }
+      const res = await fetch("/api/livestock/run", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { alert(`Livestock error: ${data.detail || res.statusText}`); return; }
+      livestockLayer.clearLayers();
+      if (data.pens) {
+        data.pens.forEach(pen => {
+          try {
+            L.circleMarker([pen.lat, pen.lon], {
+              radius: 8, fillColor: livestockSpeciesColors[pen.species] || "#999",
+              color: pen.decision === "evacuate" ? "#10b981" : "#ef4444",
+              weight: 2, opacity: 1, fillOpacity: 0.8,
+            }).addTo(livestockLayer)
+              .bindPopup(`<b>${pen.pen_id}</b> (${pen.species})<br>Priority: ${pen.priority_score?.toFixed(1)}/100<br><b>${pen.decision.toUpperCase()}</b>`);
+            if (pen.assigned_evac_site) {
+              L.polyline([[pen.lat, pen.lon], [pen.assigned_evac_site.lat, pen.assigned_evac_site.lon]], {
+                color: livestockSpeciesColors[pen.species], weight: 2, opacity: 0.6, dashArray: "5,5", interactive: false,
+              }).addTo(livestockLayer);
+              L.circleMarker([pen.assigned_evac_site.lat, pen.assigned_evac_site.lon], {
+                radius: 10, fillColor: "#10b981", color: "#047857", weight: 2, fillOpacity: 0.5, interactive: false,
+              }).addTo(livestockLayer).bindPopup(pen.assigned_evac_site.name);
+            }
+          } catch (pe) { console.warn("Pen error:", pe); }
+        });
+      }
+      renderLivestockOverlay(data);
+    } catch (e) { alert(`Livestock error: ${e.message}`); }
+    finally { btn.disabled = false; btn.textContent = "🐄 Livestock"; }
   }
+
+  // ── Crop Agent ──
+  const DECISION_COLORS = { "HARVEST NOW": "#22c55e", "PARTIAL HARVEST": "#84cc16", "TRANSPLANT": "#3b82f6", "ABANDON": "#ef4444" };
+
+  function renderCropOverlay(data) {
+    const fields = data.field_decisions || [];
+    const econ = data.economic_impact || {};
+    const el = document.getElementById("crop-content");
+
+    const fieldRows = fields.map(f => {
+      const dec = (f.decision || "").toUpperCase();
+      const col = DECISION_COLORS[dec] || "#aaa";
+      return `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+        <div style="margin-top:3px;width:8px;height:8px;border-radius:2px;background:${col};flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="color:#fff;font-weight:600;">${f.field_id || "?"} <span style="color:#666;font-weight:400;">${f.crop_category || ""}</span></div>
+          <div style="color:#555;font-size:10px;margin-top:2px;">Maturity ${f.maturity_pct ?? "?"}% · Fire in ${f.fire_arrival_hours != null ? f.fire_arrival_hours.toFixed(1)+"h" : "?"}</div>
+          ${f.reason ? `<div style="color:#444;font-size:10px;margin-top:2px;">${f.reason}</div>` : ""}
+        </div>
+        <div style="font-size:10px;font-weight:700;color:${col};text-align:right;white-space:nowrap;">${dec}</div>
+      </div>`;
+    }).join("");
+
+    // Economic summary
+    let econHtml = "";
+    if (econ && Object.keys(econ).length) {
+      const saved = econ.total_value_saved_usd ?? econ.value_saved ?? null;
+      const lost  = econ.total_value_lost_usd  ?? econ.value_lost  ?? null;
+      econHtml = `<div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Economic Impact</div>
+        ${saved != null ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#666;">Saved</span><span style="color:#22c55e;font-weight:600;">$${Number(saved).toLocaleString()}</span></div>` : ""}
+        ${lost != null ? `<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Lost</span><span style="color:#ef4444;font-weight:600;">$${Number(lost).toLocaleString()}</span></div>` : ""}
+      </div>`;
+    }
+
+    el.innerHTML = (fields.length ? fieldRows : '<div style="color:#555;">No field decisions in output</div>') + econHtml;
+    document.getElementById("crop-overlay").style.display = "block";
+  }
+
+  async function runCrop() {
+    const btn = document.getElementById("crop-btn");
+    btn.disabled = true; btn.textContent = "⏳ Running...";
+    try {
+      const res = await fetch("/api/crop/run", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { alert(`Crop agent error: ${data.detail || res.statusText}`); return; }
+      renderCropOverlay(data);
+    } catch (e) { alert(`Crop error: ${e.message}`); }
+    finally { btn.disabled = false; btn.textContent = "🌾 Crop"; }
+  }
+
+  // Load existing outputs on page load
+  fetch("/api/livestock/status").then(r => r.ok ? r.json() : null).then(d => { if (d) loadLivestock(); }).catch(() => {});
+  fetch("/api/crop/status").then(r => r.ok ? r.json() : null).then(d => { if (d) renderCropOverlay(d); }).catch(() => {});
 
   loadFires();
   setInterval(loadFires, 5 * 60 * 1000);
