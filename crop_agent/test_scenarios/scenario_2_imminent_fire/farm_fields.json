@@ -1,0 +1,30 @@
+{
+  "farm_id": "farm_test_002",
+  "farm_name": "Imminent Fire Test Farm",
+  "fields": [
+    {
+      "_comment": "ABANDON — corn just planted, not mature, not transplantable",
+      "field_id": "F1",
+      "crop_category": "corn",
+      "location": { "lat": 34.05, "lon": -118.20 },
+      "size_acres": 50,
+      "planting_date": "2026-04-20"
+    },
+    {
+      "_comment": "ABANDON — alfalfa immature, not transplantable",
+      "field_id": "F2",
+      "crop_category": "alfalfa",
+      "location": { "lat": 34.04, "lon": -118.18 },
+      "size_acres": 30,
+      "planting_date": "2026-03-01"
+    },
+    {
+      "_comment": "HARVEST NOW — grapes near fully mature, fire arrives in time",
+      "field_id": "F3",
+      "crop_category": "grapes",
+      "location": { "lat": 34.06, "lon": -118.22 },
+      "size_acres": 22,
+      "planting_date": "2018-05-01"
+    }
+  ]
+}

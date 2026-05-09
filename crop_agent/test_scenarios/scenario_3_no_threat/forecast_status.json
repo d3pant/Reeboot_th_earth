@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-05-08T10:00:00Z",
+  "stage": 1,
+  "threat_level": "GREEN",
+  "threat_level_confidence": 0.30,
+  "fwi_index": 4.0,
+  "fwi_threshold_farmer": 9,
+  "fwi_threshold_floor": 12,
+  "nearest_fire": {
+    "name": "None",
+    "distance_km": 320.0,
+    "location": { "lat": 39.00, "lon": -122.00 },
+    "detected_at": null,
+    "current_size_acres": 0,
+    "spread_rate_km_per_day": 0,
+    "direction_degrees": 0
+  },
+  "nearest_fire_distance_threshold_farmer": 100,
+  "nearest_fire_distance_threshold_floor": 75,
+  "vegetation_ndvi_anomaly": 0.2,
+  "vegetation_threshold_farmer": -1.5,
+  "vegetation_threshold_floor": -2.0,
+  "wind_speed_kmh": 10,
+  "wind_direction_degrees": 90,
+  "temperature_c": 22,
+  "humidity_percent": 55,
+  "gate_condition_met": false,
+  "gate_condition_reason": "No fire within threshold. FWI 4.0 below farmer threshold. Vegetation healthy.",
+  "multi_signal_convergence": false,
+  "next_update_minutes": 60,
+  "stage_transition_triggered": false
+}

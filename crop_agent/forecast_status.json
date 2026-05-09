@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-05-09T01:20:31Z",
+  "stage": 1,
+  "threat_level": "CRITICAL",
+  "threat_level_confidence": 0.85,
+  "fwi_index": 10.0,
+  "fwi_threshold_farmer": 9,
+  "fwi_threshold_floor": 12,
+  "nearest_fire": {
+    "name": "Palisades Fire",
+    "distance_km": 75.0,
+    "location": {
+      "lat": 33.72,
+      "lon": -117.66
+    },
+    "detected_at": "2026-05-08T06:00:00Z",
+    "current_size_acres": 15000,
+    "spread_rate_km_per_day": 156.0,
+    "direction_degrees": 225,
+    "current_perimeter": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [-118.58, 34.13],
+          [-118.56, 34.13],
+          [-118.56, 34.11],
+          [-118.58, 34.11],
+          [-118.58, 34.13]
+        ]
+      ]
+    }
+  },
+  "nearest_fire_distance_threshold_farmer": 100,
+  "nearest_fire_distance_threshold_floor": 75,
+  "vegetation_ndvi_anomaly": -1.8,
+  "vegetation_threshold_farmer": -1.5,
+  "vegetation_threshold_floor": -2.0,
+  "wind_speed_kmh": 35,
+  "wind_direction_degrees": 225,
+  "temperature_c": 32,
+  "humidity_percent": 22,
+  "gate_condition_met": true,
+  "gate_condition_reason": "FWI 10.0 exceeds farmer threshold (9); fire at 75.0 km hits hard floor (75 km); vegetation stressed beyond farmer threshold (NDVI anomaly -1.8); multi-signal convergence detected",
+  "multi_signal_convergence": true,
+  "next_update_minutes": 15,
+  "stage_transition_triggered": true
+}
