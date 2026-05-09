@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agripal — Action Briefing</title>
+  <title>Agropal — Action Briefing</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap" rel="stylesheet">
@@ -63,7 +63,7 @@
     #map-link:hover { color: var(--text); }
 
     /* ── Page ── */
-    #page { max-width: 1100px; margin: 0 auto; padding: 28px 24px 64px; }
+    #page { padding: 28px 28px 64px; }
 
     /* ── Hero card ── */
     .hero {
@@ -78,7 +78,7 @@
       pointer-events: none;
     }
     .hero h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; color: var(--text); }
-    .hero p  { font-size: 13px; color: var(--text2); margin-bottom: 22px; max-width: 720px; }
+    .hero p  { font-size: 13px; color: var(--text2); margin-bottom: 22px; max-width: 860px; }
 
     .hero-grid {
       display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
@@ -167,14 +167,44 @@
       letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
     }
     .checklist-cat ul { list-style: none; padding: 0; }
-    .checklist-cat li {
-      font-size: 12px; color: var(--text); padding: 5px 0 5px 24px;
-      position: relative; line-height: 1.45;
+    .checklist-cat li { font-size: 12px; color: var(--text); line-height: 1.45; }
+    .checklist-cat label {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 5px 0; cursor: pointer; user-select: none;
     }
-    .checklist-cat li::before {
-      content: ""; position: absolute; left: 0; top: 8px;
-      width: 14px; height: 14px; border: 1.5px solid var(--text3); border-radius: 3px;
+    .checklist-cat label:hover { color: var(--green); }
+    .checklist-cat input[type="checkbox"] { display: none; }
+    .checklist-cat .cb-box {
+      flex-shrink: 0; width: 16px; height: 16px; margin-top: 1px;
+      border: 1.5px solid var(--text3); border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+      background: #fff;
     }
+    .checklist-cat .cb-box svg { display: none; }
+    .checklist-cat input[type="checkbox"]:checked + label .cb-box {
+      background: var(--green); border-color: var(--green);
+    }
+    .checklist-cat input[type="checkbox"]:checked + label .cb-box svg { display: block; }
+    .checklist-cat input[type="checkbox"]:checked + label .cb-text {
+      text-decoration: line-through; color: var(--text3);
+    }
+    .checklist-progress {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+      font-size: 11px; font-weight: 600; color: var(--text3);
+    }
+    .checklist-progress-bar {
+      flex: 1; height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden;
+    }
+    .checklist-progress-fill {
+      height: 100%; background: var(--green); border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    #checklist-clear {
+      font-size: 11px; color: var(--text3); background: none; border: none;
+      cursor: pointer; padding: 0; text-decoration: underline; font-family: inherit;
+    }
+    #checklist-clear:hover { color: var(--fire); }
 
     /* ── Setup banner ── */
     #setup-banner {
@@ -186,6 +216,100 @@
     @media (max-width: 820px) {
       .hero-grid, .contents-grid, .checklist-grid { grid-template-columns: 1fr; }
     }
+
+    /* ── Insurance card ── */
+    #insurance-card {
+      background: linear-gradient(135deg, var(--card) 0%, #fafbfc 100%);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px; box-shadow: var(--shadow); margin-bottom: 18px;
+      position: relative; overflow: hidden;
+    }
+    #insurance-card::before {
+      content: ""; position: absolute; top: 0; right: 0; width: 240px; height: 240px;
+      background: radial-gradient(circle at top right, rgba(64,145,108,0.08), transparent 70%);
+      pointer-events: none;
+    }
+    .ins-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 16px; }
+    .ins-head-left { display: flex; align-items: center; gap: 14px; }
+    .ins-icon-wrap {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--green-light); color: var(--green);
+      display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;
+    }
+    .ins-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+    .ins-head p  { font-size: 12px; color: var(--text3); margin-top: 3px; }
+    .ins-status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 6px 12px; border-radius: 20px;
+      background: var(--green-light); color: var(--green); white-space: nowrap;
+    }
+    .ins-status-pill::before { content: "●"; color: var(--green2); }
+    .ins-status-pill.warn { background: #fef9c3; color: #854d0e; }
+    .ins-status-pill.warn::before { color: #ca8a04; }
+    .ins-body { display: grid; grid-template-columns: 168px 1fr; gap: 24px; align-items: stretch; }
+    .ins-preview {
+      position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 14px; display: flex; flex-direction: column; align-items: center;
+      gap: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .ins-preview-page {
+      position: relative; width: 110px; height: 138px; background: #fff;
+      border: 1px solid var(--border); border-radius: 6px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.08); padding: 10px 8px; overflow: hidden;
+    }
+    .ins-preview-page::before {
+      content: ""; position: absolute; top: 0; right: 0; width: 18px; height: 18px;
+      background: linear-gradient(135deg, transparent 50%, var(--cream) 50%);
+      border-left: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .ins-preview-line { height: 4px; background: #d1d5db; border-radius: 2px; margin-bottom: 5px; }
+    .ins-preview-line.short { width: 60%; }
+    .ins-preview-line.tiny  { width: 35%; background: #e5e7eb; }
+    .ins-preview-line.full  { width: 100%; }
+    .ins-preview-stamp {
+      position: absolute; bottom: 8px; left: 8px;
+      font-size: 7px; font-weight: 800; letter-spacing: 0.1em;
+      color: var(--green); border: 1.5px solid var(--green); padding: 2px 4px; border-radius: 3px;
+      transform: rotate(-6deg); opacity: 0.85;
+    }
+    .ins-preview-name { font-size: 11px; font-weight: 700; color: var(--text); }
+    .ins-preview-meta { font-size: 10px; color: var(--text3); }
+    .ins-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .ins-meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 22px; }
+    .ins-meta-row { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .ins-meta-label { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+    .ins-meta-val { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ins-meta-val.urgent { color: var(--fire); }
+    .ins-progress-block { background: var(--cream); border-radius: 12px; padding: 14px 16px; }
+    .ins-progress-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .ins-progress-label { font-size: 12px; font-weight: 600; color: var(--text2); }
+    .ins-progress-count { font-size: 12px; font-weight: 700; color: var(--text); }
+    .ins-progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+    .ins-progress-fill { height: 100%; background: linear-gradient(90deg, var(--green2), var(--green)); border-radius: 3px; transition: width 0.6s ease; }
+    .ins-progress-hint { font-size: 11px; color: var(--text3); margin-top: 8px; line-height: 1.5; }
+    .ins-cta-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+    .ins-download {
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 12px 22px; background: var(--green); color: #fff;
+      border-radius: 12px; font-size: 14px; font-weight: 700; text-decoration: none;
+      box-shadow: 0 4px 14px rgba(45,106,79,0.3); transition: all 0.15s;
+      border: none; cursor: pointer; font-family: inherit;
+    }
+    .ins-download:hover { background: #265d44; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(45,106,79,0.35); }
+    .ins-download:active { transform: translateY(0); }
+    .ins-secondary {
+      font-size: 12px; font-weight: 600; color: var(--text2);
+      cursor: pointer; padding: 8px 14px; border-radius: 10px;
+      background: none; border: 1px solid var(--border); transition: all 0.15s; font-family: inherit;
+    }
+    .ins-secondary:hover { background: var(--cream); color: var(--text); }
+    .ins-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ins-empty {
+      grid-column: 1 / -1; padding: 28px; text-align: center;
+      background: var(--cream); border-radius: 12px; color: var(--text3); font-size: 13px;
+    }
+    @media (max-width: 720px) { .ins-body { grid-template-columns: 1fr; } .ins-meta-grid { grid-template-columns: 1fr; } }
 
     /* ── Typography upgrades ── */
     #logo { font-weight: 800; letter-spacing: -0.02em; }
@@ -224,7 +348,7 @@
 </div>
 
 <div id="header">
-  <a id="logo" href="/">Agripal</a>
+  <a id="logo" href="/">Agropal</a>
   <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
   <div id="farm-info-chip">
     <span id="farm-name-hdr" style="font-weight:700;color:var(--text);">—</span>
@@ -300,80 +424,23 @@
     </div>
   </div>
 
-  <!-- ── Evacuation Checklist preview (visible on page) ── -->
+  <!-- ── Evacuation Checklist ── -->
   <div class="section">
-    <h2>Evacuation Go-Bag Checklist</h2>
-    <p class="lede">Pack these <b>now</b> so you can leave within 15 minutes if a critical threat is declared.</p>
-    <div class="checklist-grid">
-
-      <div class="checklist-cat">
-        <h4>Personal</h4>
-        <ul>
-          <li>Government ID, passport, driver's license</li>
-          <li>Insurance cards (health, property, crop, livestock)</li>
-          <li>Cash and credit/debit cards</li>
-          <li>Phone and charger (car charger, power bank)</li>
-          <li>Prescriptions and 7-day medication supply</li>
-          <li>Eyeglasses or hearing aids</li>
-        </ul>
-      </div>
-
-      <div class="checklist-cat">
-        <h4>Documents</h4>
-        <ul>
-          <li>Property deeds and mortgage papers</li>
-          <li>Livestock registration and vaccination records</li>
-          <li>Crop insurance policies and recent receipts</li>
-          <li>Tax records (last 3 years)</li>
-          <li>Birth certificates, social security cards</li>
-          <li>Vehicle titles and registration</li>
-          <li>USB drive or cloud backup of farm records</li>
-        </ul>
-      </div>
-
-      <div class="checklist-cat">
-        <h4>Animals</h4>
-        <ul>
-          <li>Halters, leads, and transport crates</li>
-          <li>Portable water containers and 3-day feed</li>
-          <li>Veterinary records and medications</li>
-          <li>Photos of each animal (proof of ownership)</li>
-          <li>Pet carriers and leashes</li>
-        </ul>
-      </div>
-
-      <div class="checklist-cat">
-        <h4>Farm Records</h4>
-        <ul>
-          <li>Backup of farm management software</li>
-          <li>Field maps and irrigation schedules</li>
-          <li>Equipment inventory and serial numbers</li>
-          <li>Contact list: vets, suppliers, neighbors</li>
-        </ul>
-      </div>
-
-      <div class="checklist-cat">
-        <h4>Vehicle Preparation</h4>
-        <ul>
-          <li>Fuel tank filled (do this NOW)</li>
-          <li>Tire pressure and spare checked</li>
-          <li>Emergency kit: water, food, first-aid (3 days)</li>
-          <li>Blankets, change of clothes, sturdy shoes</li>
-          <li>Flashlight and extra batteries</li>
-        </ul>
-      </div>
-
-      <div class="checklist-cat">
-        <h4>Don't forget</h4>
-        <ul>
-          <li>Family photos and irreplaceable items</li>
-          <li>Comfort items for children</li>
-          <li>Evacuation contact addresses</li>
-          <li>Paper maps of evacuation routes</li>
-        </ul>
-      </div>
-
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">
+      <h2 style="margin:0;">Evacuation Go-Bag Checklist</h2>
+      <button id="checklist-clear" onclick="clearChecklist()">Clear all</button>
     </div>
+    <p class="lede">Pack these <b>now</b> so you can leave within 15 minutes if a critical threat is declared.</p>
+    <div class="checklist-progress">
+      <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="cl-bar" style="width:0%"></div></div>
+      <span id="cl-count">0 / 30 packed</span>
+    </div>
+    <div class="checklist-grid" id="checklist-grid"></div>
+  </div>
+
+  <!-- ── USDA Insurance Filing ── -->
+  <div id="insurance-card">
+    <div id="insurance-content"><div class="loading" style="padding:20px 0;color:var(--text3);font-size:13px;font-style:italic;">Loading insurance filing…</div></div>
   </div>
 
 </div>
@@ -395,6 +462,7 @@ function applyThreatColor(level) {
 const fmtBytes = b => b >= 1e6 ? `${(b/1e6).toFixed(1)} MB` : b >= 1e3 ? `${(b/1e3).toFixed(0)} KB` : `${b} B`;
 
 let reportStatus = null;
+let insuranceData = null;
 
 async function loadAll() {
   // Setup banner
@@ -447,6 +515,115 @@ async function loadAll() {
       document.getElementById('download-meta').textContent = 'No briefing generated yet — clicking download will create one.';
     }
   } catch (_) {}
+
+  // Insurance filing
+  try {
+    const r = await fetch('/api/insurance/status');
+    insuranceData = r.ok ? await r.json() : null;
+  } catch (_) { insuranceData = null; }
+  renderInsurance();
+}
+
+function renderInsurance() {
+  const root = document.getElementById('insurance-content');
+  if (!insuranceData || !insuranceData.ok) {
+    root.innerHTML = `
+      <div class="ins-head">
+        <div class="ins-head-left">
+          <div class="ins-icon-wrap" style="background:#fef9c3;color:#854d0e;">📄</div>
+          <div>
+            <h2>USDA Insurance Filing</h2>
+            <p>CCC-576 Notice of Loss — pre-filled from your loss data</p>
+          </div>
+        </div>
+        <span class="ins-status-pill warn">NOT YET GENERATED</span>
+      </div>
+      <div class="ins-empty">
+        Run the pipeline (click <b>↻ Refresh</b> in the header) to pre-fill your CCC-576 from current farm and loss data.
+      </div>`;
+    return;
+  }
+  const d = insuranceData;
+  const sizeKb = (d.size_bytes / 1024).toFixed(0);
+  const filledAt = new Date(d.filled_at);
+  const filledStr = filledAt.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })
+                  + ' at ' + filledAt.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  const totalFields = d.fields_total || 0;
+  const filledCount = d.fields_filled || 0;
+  const pct = totalFields > 0 ? Math.round(filledCount / totalFields * 100) : 0;
+  const fsaShort = (d.fsa_office || '').split(',').slice(0, 2).join(',').trim() || 'Local FSA office';
+  const fresh = (Date.now() - filledAt.getTime()) < 86400000;
+
+  root.innerHTML = `
+    <div class="ins-head">
+      <div class="ins-head-left">
+        <div class="ins-icon-wrap">📄</div>
+        <div>
+          <h2>USDA Insurance Filing</h2>
+          <p>${d.form_name} — pre-filled from current farm and loss data</p>
+        </div>
+      </div>
+      <span class="ins-status-pill${fresh ? '' : ' warn'}">${fresh ? 'READY TO FILE' : 'STALE — RE-RUN'}</span>
+    </div>
+    <div class="ins-body">
+      <div class="ins-preview">
+        <div class="ins-preview-page">
+          <div class="ins-preview-line full"></div><div class="ins-preview-line short"></div>
+          <div class="ins-preview-line tiny"></div><div class="ins-preview-line full"></div>
+          <div class="ins-preview-line short"></div><div class="ins-preview-line full"></div>
+          <div class="ins-preview-line tiny"></div><div class="ins-preview-line short"></div>
+          <div class="ins-preview-line full"></div><div class="ins-preview-line tiny"></div>
+          <div class="ins-preview-line short"></div>
+          <div class="ins-preview-stamp">PRE-FILLED</div>
+        </div>
+        <div class="ins-preview-name">CCC-576</div>
+        <div class="ins-preview-meta">${sizeKb} KB · 2 pages</div>
+      </div>
+      <div class="ins-right">
+        <div class="ins-meta-grid">
+          <div class="ins-meta-row"><div class="ins-meta-label">Agency</div><div class="ins-meta-val">${d.agency}</div></div>
+          <div class="ins-meta-row"><div class="ins-meta-label">Filing Deadline</div><div class="ins-meta-val urgent">Within ${d.deadline_days} days of loss</div></div>
+          <div class="ins-meta-row" style="grid-column:1/-1;"><div class="ins-meta-label">Submit at</div><div class="ins-meta-val" title="${d.fsa_office||''}">${fsaShort}</div></div>
+          <div class="ins-meta-row" style="grid-column:1/-1;"><div class="ins-meta-label">Last generated</div><div class="ins-meta-val">${filledStr}</div></div>
+        </div>
+        ${totalFields > 0 ? `
+        <div class="ins-progress-block">
+          <div class="ins-progress-head">
+            <span class="ins-progress-label">Pre-filled by Insurance Agent</span>
+            <span class="ins-progress-count">${filledCount} / ${totalFields} fields · ${pct}%</span>
+          </div>
+          <div class="ins-progress-bar"><div class="ins-progress-fill" style="width:${pct}%"></div></div>
+          <div class="ins-progress-hint">
+            Pre-filled: farm name, FSA office, FIPS codes, disaster type and dates, planted acreage, per-crop loss values.<br>
+            Left for you: NAP unit numbers, signatures, variety/type, planting period.
+          </div>
+        </div>` : ''}
+        <div class="ins-cta-row">
+          <a class="ins-download" href="/api/insurance/pdf" download="ccc_576_filled.pdf">
+            <span style="font-size:16px;">⬇</span> Download CCC-576 PDF
+          </a>
+          <button class="ins-secondary" id="ins-regen-btn" onclick="regenerateInsurance()">↻ Regenerate</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function regenerateInsurance() {
+  const btn = document.getElementById('ins-regen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Regenerating…'; }
+  try {
+    const res = await fetch('/api/insurance/run', { method: 'POST' });
+    if (!res.ok) {
+      let detail = ''; try { detail = (await res.json()).detail || ''; } catch (_) {}
+      alert('Regenerate failed: ' + (detail || res.statusText)); return;
+    }
+    const sRes = await fetch('/api/insurance/status');
+    if (sRes.ok) { insuranceData = await sRes.json(); renderInsurance(); }
+  } catch(e) {
+    alert('Regenerate: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Regenerate'; }
+  }
 }
 
 async function downloadReport() {
@@ -524,6 +701,113 @@ async function sendEmail() {
     btn.disabled = false; btn.textContent = '✉ Send briefing';
   }
 }
+
+// ── Checklist ──
+const CHECKLIST = [
+  { cat: 'Personal', items: [
+    'Government ID, passport, driver\'s license',
+    'Insurance cards (health, property, crop, livestock)',
+    'Cash and credit/debit cards',
+    'Phone and charger (car charger, power bank)',
+    'Prescriptions and 7-day medication supply',
+    'Eyeglasses or hearing aids',
+  ]},
+  { cat: 'Documents', items: [
+    'Property deeds and mortgage papers',
+    'Livestock registration and vaccination records',
+    'Crop insurance policies and recent receipts',
+    'Tax records (last 3 years)',
+    'Birth certificates, social security cards',
+    'Vehicle titles and registration',
+    'USB drive or cloud backup of farm records',
+  ]},
+  { cat: 'Animals', items: [
+    'Halters, leads, and transport crates',
+    'Portable water containers and 3-day feed',
+    'Veterinary records and medications',
+    'Photos of each animal (proof of ownership)',
+    'Pet carriers and leashes',
+  ]},
+  { cat: 'Farm Records', items: [
+    'Backup of farm management software',
+    'Field maps and irrigation schedules',
+    'Equipment inventory and serial numbers',
+    'Contact list: vets, suppliers, neighbors',
+  ]},
+  { cat: 'Vehicle Preparation', items: [
+    'Fuel tank filled (do this NOW)',
+    'Tire pressure and spare checked',
+    'Emergency kit: water, food, first-aid (3 days)',
+    'Blankets, change of clothes, sturdy shoes',
+    'Flashlight and extra batteries',
+  ]},
+  { cat: "Don't Forget", items: [
+    'Family photos and irreplaceable items',
+    'Comfort items for children',
+    'Evacuation contact addresses',
+    'Paper maps of evacuation routes',
+  ]},
+];
+
+const STORAGE_KEY = 'agropal_checklist_v1';
+const CHECK_SVG = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,6 5,9 10,3"/></svg>`;
+
+function clKey(cat, item) {
+  return `${cat}::${item}`;
+}
+
+function loadCheckState() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
+function saveCheckState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function updateProgress() {
+  const total = CHECKLIST.reduce((s, c) => s + c.items.length, 0);
+  const checked = document.querySelectorAll('.checklist-cat input[type="checkbox"]:checked').length;
+  document.getElementById('cl-bar').style.width = (checked / total * 100) + '%';
+  document.getElementById('cl-count').textContent = `${checked} / ${total} items packed`;
+}
+
+function renderChecklist() {
+  const state = loadCheckState();
+  const grid = document.getElementById('checklist-grid');
+  grid.innerHTML = CHECKLIST.map(({ cat, items }) => `
+    <div class="checklist-cat">
+      <h4>${cat}</h4>
+      <ul>
+        ${items.map(item => {
+          const key = clKey(cat, item);
+          const checked = state[key] ? 'checked' : '';
+          return `<li>
+            <input type="checkbox" id="${key}" ${checked} onchange="onCheck(this,'${key}')">
+            <label for="${key}">
+              <span class="cb-box">${CHECK_SVG}</span>
+              <span class="cb-text">${item}</span>
+            </label>
+          </li>`;
+        }).join('')}
+      </ul>
+    </div>
+  `).join('');
+  updateProgress();
+}
+
+function onCheck(el, key) {
+  const state = loadCheckState();
+  state[key] = el.checked;
+  saveCheckState(state);
+  updateProgress();
+}
+
+function clearChecklist() {
+  localStorage.removeItem(STORAGE_KEY);
+  renderChecklist();
+}
+
+renderChecklist();
 
 loadAll();
 </script>

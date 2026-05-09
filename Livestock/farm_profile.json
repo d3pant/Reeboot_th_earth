@@ -1,9 +1,9 @@
 {
   "farm_id": "farm_001",
-  "farm_name": "Moi farm",
+  "farm_name": "My Farm",
   "centroid": {
-    "lat": 32.7316,
-    "lon": -116.7346
+    "lat": 33.1253,
+    "lon": -116.6462
   },
   "total_acres": 100.0,
   "pens": [
@@ -17,8 +17,8 @@
       "health_status": "healthy",
       "avg_market_value_usd": 1450,
       "centroid": {
-        "lat": 32.73267,
-        "lon": -116.73504
+        "lat": 33.12637,
+        "lon": -116.64664
       }
     }
   ],

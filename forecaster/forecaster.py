@@ -63,12 +63,19 @@ def _utc_now() -> str:
 # ---------------------------------------------------------------------------
 
 def _fwi_threat(fwi: float) -> str:
-    if fwi >= 12:
+    """FWI-only threat from fire-weather conditions.
+
+    FWI alone cannot reach CRITICAL — that requires a nearby fire too.
+    Extreme FWI (≥20) is CRITICAL on its own; below that it caps at WARNING.
+    """
+    if fwi >= 20:
         return "CRITICAL"
-    if fwi >= 9:
+    if fwi >= 12:
         return "WARNING"
-    if fwi >= 6:
+    if fwi >= 9:
         return "WATCH"
+    if fwi >= 6:
+        return "GREEN"
     return "GREEN"
 
 
@@ -121,11 +128,25 @@ def evaluate_gate_condition(fwi: float, fire: dict | None, ndvi: float, farm_con
     if convergence:
         combined = _escalate(combined)
 
-    # Hard safety floors override everything
+    # Hard safety floors
+    # Fire proximity floor: any fire within the hard floor distance → CRITICAL no matter what
+    # FWI floor alone: only CRITICAL if FWI is truly extreme (≥20) or fire is also within 300 km;
+    #                  otherwise caps at WARNING so a far-away fire doesn't falsely alarm CRITICAL
     hard_floor_hit = False
-    if fwi >= floor["fwi_trigger"] or (distance_km is not None and distance_km <= floor["fire_distance_km"]):
+    fire_floor_hit = distance_km is not None and distance_km <= floor["fire_distance_km"]
+    fwi_floor_hit  = fwi >= floor["fwi_trigger"]
+
+    if fire_floor_hit:
         combined = _max_threat(combined, "CRITICAL")
         hard_floor_hit = True
+    elif fwi_floor_hit:
+        hard_floor_hit = True
+        if fwi >= 20 or (distance_km is not None and distance_km <= 300):
+            # Truly extreme weather OR fire within 300 km — escalate to CRITICAL
+            combined = _max_threat(combined, "CRITICAL")
+        else:
+            # Dangerous weather but fire is far — cap at WARNING (not CRITICAL)
+            combined = _max_threat(combined, "WARNING")
 
     # Farmer custom thresholds: gate condition is met at WARNING or above
     gate_met = _threat_index(combined) >= _threat_index("WARNING")

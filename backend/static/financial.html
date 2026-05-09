@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agripal — Financial Overview</title>
+  <title>Agropal — Financial Overview</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap" rel="stylesheet">
@@ -65,7 +65,7 @@
     }
 
     /* ── Page ── */
-    #page { max-width: 1200px; margin: 0 auto; padding: 28px 28px 100px; }
+    #page { padding: 28px 28px 100px; }
 
     /* ── Summary row ── */
     #summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
@@ -167,139 +167,6 @@
     .section-header h2 { font-size: 15px; font-weight: 700; }
     .section-header span { font-size: 12px; color: var(--text3); }
 
-    /* ── Insurance card ── */
-    #insurance-card {
-      background: linear-gradient(135deg, var(--card) 0%, #fafbfc 100%);
-      border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 28px; box-shadow: var(--shadow); margin-bottom: 24px;
-      position: relative; overflow: hidden;
-    }
-    #insurance-card::before {
-      content: ""; position: absolute; top: 0; right: 0; width: 240px; height: 240px;
-      background: radial-gradient(circle at top right, rgba(64,145,108,0.08), transparent 70%);
-      pointer-events: none;
-    }
-    .ins-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 16px; }
-    .ins-head-left { display: flex; align-items: center; gap: 14px; }
-    .ins-icon-wrap {
-      width: 44px; height: 44px; border-radius: 12px;
-      background: var(--green-light); color: var(--green);
-      display: flex; align-items: center; justify-content: center; font-size: 22px;
-      flex-shrink: 0;
-    }
-    .ins-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
-    .ins-head p  { font-size: 12px; color: var(--text3); margin-top: 3px; }
-    .ins-status-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-      padding: 6px 12px; border-radius: 20px;
-      background: var(--green-light); color: var(--green); white-space: nowrap;
-    }
-    .ins-status-pill::before { content: "●"; color: var(--green2); }
-    .ins-status-pill.warn { background: #fef9c3; color: #854d0e; }
-    .ins-status-pill.warn::before { color: #ca8a04; }
-
-    .ins-body { display: grid; grid-template-columns: 168px 1fr; gap: 24px; align-items: stretch; }
-
-    /* PDF preview tile */
-    .ins-preview {
-      position: relative;
-      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-      padding: 16px 14px; display: flex; flex-direction: column; align-items: center;
-      gap: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    }
-    .ins-preview-page {
-      position: relative;
-      width: 110px; height: 138px; background: #fff;
-      border: 1px solid var(--border); border-radius: 6px;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.08);
-      padding: 10px 8px; overflow: hidden;
-    }
-    .ins-preview-page::before {
-      content: ""; position: absolute; top: 0; right: 0; width: 18px; height: 18px;
-      background: linear-gradient(135deg, transparent 50%, var(--cream) 50%);
-      border-left: 1px solid var(--border); border-bottom: 1px solid var(--border);
-    }
-    .ins-preview-line {
-      height: 4px; background: #d1d5db; border-radius: 2px; margin-bottom: 5px;
-    }
-    .ins-preview-line.short { width: 60%; }
-    .ins-preview-line.tiny  { width: 35%; background: #e5e7eb; }
-    .ins-preview-line.full  { width: 100%; }
-    .ins-preview-stamp {
-      position: absolute; bottom: 8px; left: 8px;
-      font-size: 7px; font-weight: 800; letter-spacing: 0.1em;
-      color: var(--green); border: 1.5px solid var(--green); padding: 2px 4px; border-radius: 3px;
-      transform: rotate(-6deg); opacity: 0.85;
-    }
-    .ins-preview-name { font-size: 11px; font-weight: 700; color: var(--text); }
-    .ins-preview-meta { font-size: 10px; color: var(--text3); }
-
-    /* Right column */
-    .ins-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-    .ins-meta-grid {
-      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 22px;
-    }
-    .ins-meta-row { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .ins-meta-label {
-      font-size: 10px; font-weight: 700; color: var(--text3);
-      letter-spacing: 0.1em; text-transform: uppercase;
-    }
-    .ins-meta-val {
-      font-size: 13px; font-weight: 600; color: var(--text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .ins-meta-val.urgent { color: var(--fire); }
-
-    /* Progress bar */
-    .ins-progress-block {
-      background: var(--cream); border-radius: 12px; padding: 14px 16px;
-    }
-    .ins-progress-head {
-      display: flex; justify-content: space-between; align-items: baseline;
-      margin-bottom: 8px;
-    }
-    .ins-progress-label { font-size: 12px; font-weight: 600; color: var(--text2); }
-    .ins-progress-count { font-size: 12px; font-weight: 700; color: var(--text); }
-    .ins-progress-bar {
-      height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;
-    }
-    .ins-progress-fill {
-      height: 100%; background: linear-gradient(90deg, var(--green2), var(--green));
-      border-radius: 3px; transition: width 0.6s ease;
-    }
-    .ins-progress-hint { font-size: 11px; color: var(--text3); margin-top: 8px; line-height: 1.5; }
-
-    /* CTA row */
-    .ins-cta-row {
-      display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px;
-    }
-    .ins-download {
-      display: inline-flex; align-items: center; gap: 9px;
-      padding: 12px 22px; background: var(--green); color: #fff;
-      border-radius: 12px; font-size: 14px; font-weight: 700; text-decoration: none;
-      box-shadow: 0 4px 14px rgba(45,106,79,0.3); transition: all 0.15s;
-      border: none; cursor: pointer; font-family: inherit;
-    }
-    .ins-download:hover { background: #265d44; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(45,106,79,0.35); }
-    .ins-download:active { transform: translateY(0); }
-    .ins-secondary {
-      font-size: 12px; font-weight: 600; color: var(--text2);
-      cursor: pointer; padding: 8px 14px; border-radius: 10px;
-      background: none; border: 1px solid var(--border); transition: all 0.15s; font-family: inherit;
-    }
-    .ins-secondary:hover { background: var(--cream); color: var(--text); }
-    .ins-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .ins-empty {
-      grid-column: 1 / -1; padding: 28px; text-align: center;
-      background: var(--cream); border-radius: 12px; color: var(--text3); font-size: 13px;
-    }
-
-    @media (max-width: 720px) {
-      .ins-body { grid-template-columns: 1fr; }
-      .ins-meta-grid { grid-template-columns: 1fr; }
-    }
-
     /* ── Big number typography ── */
     .kpi-val { font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
     #logo { font-weight: 800; letter-spacing: -0.02em; }
@@ -338,7 +205,7 @@
 
 <!-- ── Header ── -->
 <div id="header">
-  <a id="logo" href="/">Agripal</a>
+  <a id="logo" href="/">Agropal</a>
   <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
   <div id="farm-info-chip">
     <span id="farm-name-hdr" style="font-weight:700;color:var(--text);">—</span>
@@ -447,10 +314,6 @@
     <div id="programs-table-wrap"><div class="loading">Loading…</div></div>
   </div>
 
-  <!-- Insurance form -->
-  <div id="insurance-card">
-    <div id="insurance-content"><div class="loading">Loading insurance filing…</div></div>
-  </div>
 
 </div>
 
@@ -472,7 +335,7 @@ const COLORS = {
 Chart.defaults.font.family = "'SF Pro Display', system-ui, -apple-system, sans-serif";
 Chart.defaults.color = '#4b5563';
 
-let econData = null, policyData = null, insuranceData = null;
+let econData = null, policyData = null;
 
 const THREAT_PALETTE = {
   GREEN:     { bg: 'rgba(64,145,108,0.1)',  fg: '#2d6a4f', bd: 'rgba(64,145,108,0.25)' },
@@ -502,12 +365,11 @@ async function loadAll() {
   } catch (_) {}
 
   try {
-    const [eRes, pRes, sRes, profRes, iRes] = await Promise.all([
+    const [eRes, pRes, sRes, profRes] = await Promise.all([
       fetch('/api/econ'),
       fetch('/api/policy'),
       fetch('/api/status'),
       fetch('/api/farm-profile'),
-      fetch('/api/insurance/status'),
     ]);
 
     if (eRes.ok)    econData   = await eRes.json();
@@ -525,142 +387,12 @@ async function loadAll() {
       const penCount = Array.isArray(p.pens) ? p.pens.length : 0;
       document.getElementById('farm-pens-hdr').textContent = penCount + (penCount === 1 ? ' pen' : ' pens');
     }
-    insuranceData = iRes.ok ? await iRes.json() : null;
 
     if (econData)   renderEcon();
     if (policyData) renderPolicy();
-    renderInsurance();
 
   } catch(e) {
     console.error(e);
-  }
-}
-
-function renderInsurance() {
-  const root = document.getElementById('insurance-content');
-  if (!insuranceData || !insuranceData.ok) {
-    root.innerHTML = `
-      <div class="ins-head">
-        <div class="ins-head-left">
-          <div class="ins-icon-wrap" style="background:#fef9c3;color:#854d0e;">📄</div>
-          <div>
-            <h2>USDA Insurance Filing</h2>
-            <p>CCC-576 Notice of Loss — pre-filled from your loss data</p>
-          </div>
-        </div>
-        <span class="ins-status-pill warn">NOT YET GENERATED</span>
-      </div>
-      <div class="ins-empty">
-        Run the pipeline (click <b>↻ Refresh all agents</b> in the bar below) to pre-fill your CCC-576 from current farm and loss data.
-      </div>`;
-    return;
-  }
-
-  const d = insuranceData;
-  const sizeKb = (d.size_bytes / 1024).toFixed(0);
-  const filledAt = new Date(d.filled_at);
-  const filledStr = filledAt.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })
-                  + ' at ' + filledAt.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
-  const totalFields = d.fields_total || 0;
-  const filledCount = d.fields_filled || 0;
-  const pct = totalFields > 0 ? Math.round(filledCount / totalFields * 100) : 0;
-  const hasFields = totalFields > 0;
-  const fsaShort = (d.fsa_office || '').split(',').slice(0, 2).join(',').trim() || 'Local FSA office';
-  const ageHours = (Date.now() - filledAt.getTime()) / 3600000;
-  const fresh = ageHours < 24;
-
-  root.innerHTML = `
-    <div class="ins-head">
-      <div class="ins-head-left">
-        <div class="ins-icon-wrap">📄</div>
-        <div>
-          <h2>USDA Insurance Filing</h2>
-          <p>${d.form_name} — pre-filled from current farm and loss data</p>
-        </div>
-      </div>
-      <span class="ins-status-pill${fresh ? '' : ' warn'}">${fresh ? 'READY TO FILE' : 'STALE — RE-RUN'}</span>
-    </div>
-
-    <div class="ins-body">
-      <div class="ins-preview">
-        <div class="ins-preview-page">
-          <div class="ins-preview-line full"></div>
-          <div class="ins-preview-line short"></div>
-          <div class="ins-preview-line tiny"></div>
-          <div class="ins-preview-line full"></div>
-          <div class="ins-preview-line short"></div>
-          <div class="ins-preview-line full"></div>
-          <div class="ins-preview-line tiny"></div>
-          <div class="ins-preview-line short"></div>
-          <div class="ins-preview-line full"></div>
-          <div class="ins-preview-line tiny"></div>
-          <div class="ins-preview-line short"></div>
-          <div class="ins-preview-stamp">PRE-FILLED</div>
-        </div>
-        <div class="ins-preview-name">CCC-576</div>
-        <div class="ins-preview-meta">${sizeKb} KB · 2 pages</div>
-      </div>
-
-      <div class="ins-right">
-        <div class="ins-meta-grid">
-          <div class="ins-meta-row">
-            <div class="ins-meta-label">Agency</div>
-            <div class="ins-meta-val" title="${d.agency}">${d.agency}</div>
-          </div>
-          <div class="ins-meta-row">
-            <div class="ins-meta-label">Filing Deadline</div>
-            <div class="ins-meta-val urgent">Within ${d.deadline_days} days of loss</div>
-          </div>
-          <div class="ins-meta-row" style="grid-column:1/-1;">
-            <div class="ins-meta-label">Submit at</div>
-            <div class="ins-meta-val" title="${d.fsa_office || ''}">${fsaShort}</div>
-          </div>
-          <div class="ins-meta-row" style="grid-column:1/-1;">
-            <div class="ins-meta-label">Last generated</div>
-            <div class="ins-meta-val">${filledStr}</div>
-          </div>
-        </div>
-
-        ${hasFields ? `
-        <div class="ins-progress-block">
-          <div class="ins-progress-head">
-            <span class="ins-progress-label">Pre-filled by Insurance Agent</span>
-            <span class="ins-progress-count">${filledCount} / ${totalFields} fields · ${pct}%</span>
-          </div>
-          <div class="ins-progress-bar"><div class="ins-progress-fill" style="width:${pct}%"></div></div>
-          <div class="ins-progress-hint">
-            Pre-filled: farm name, FSA office, FIPS codes, disaster type and dates, planted acreage, per-crop loss values.<br>
-            Left for you: NAP unit numbers, signatures, variety/type, planting period.
-          </div>
-        </div>` : ''}
-
-        <div class="ins-cta-row">
-          <a class="ins-download" href="/api/insurance/pdf" download="ccc_576_filled.pdf">
-            <span style="font-size:16px;">⬇</span> Download CCC-576 PDF
-          </a>
-          <button class="ins-secondary" id="ins-regen-btn" onclick="regenerateInsurance()">↻ Regenerate</button>
-        </div>
-      </div>
-    </div>`;
-}
-
-async function regenerateInsurance() {
-  const btn = document.getElementById('ins-regen-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Regenerating…'; }
-  try {
-    const res = await fetch('/api/insurance/run', { method: 'POST' });
-    if (!res.ok) {
-      let detail = '';
-      try { detail = (await res.json()).detail || ''; } catch (_) {}
-      alert('Regenerate failed: ' + (detail || res.statusText));
-      return;
-    }
-    const sRes = await fetch('/api/insurance/status');
-    if (sRes.ok) { insuranceData = await sRes.json(); renderInsurance(); }
-  } catch(e) {
-    alert('Regenerate: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '↻ Regenerate'; }
   }
 }
 

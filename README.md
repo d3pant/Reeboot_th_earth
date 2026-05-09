@@ -96,6 +96,18 @@ Threat levels used system-wide: `GREEN → WATCH → WARNING → CRITICAL → EM
 
 Update intervals by threat level: GREEN=720min, WATCH=120min, WARNING=30min, CRITICAL=15min, EMERGENCY=5min.
 
+**Threat level signal logic (`_fwi_threat`):**
+
+| FWI range | FWI-only signal |
+|-----------|----------------|
+| < 6 | GREEN |
+| 6–8 | GREEN |
+| 9–11 | WATCH |
+| 12–19 | WARNING |
+| ≥ 20 | CRITICAL |
+
+FWI 12–19 alone does **not** trigger CRITICAL — it produces WARNING. CRITICAL from FWI alone requires FWI ≥ 20. Hard floors in `evaluate_gate_condition()` override upward: fire ≤ 75 km always floors at CRITICAL; FWI ≥ 12 floors at WARNING unless fire is also ≤ 300 km (in which case CRITICAL). This prevents a distant wildfire (> 500 km) from triggering CRITICAL solely due to moderate FWI.
+
 ---
 
 ### Econ Agent (ERPC)
@@ -215,16 +227,112 @@ Supported languages: `en`, `es`, `zh-CN`, `vi`, `tl`, `ko`, `ar`, `hi`, `fr`, `p
 
 ## Frontend Dashboard
 
-Four pages, all sharing the same cream/green theme, 56px header, and `:root` design tokens. Click flow: setup → dashboard → financial → plan.
+Five-tab single-app layout. All pages share the same cream/green design system: Inter variable font, `--cream:#faf9f5` background, `--green:#2d6a4f` accent, 56px sticky header, and an animated SVG film-grain overlay at 14% opacity. A yellow setup-incomplete banner appears on every page if `.farm_setup_done` is absent.
 
-| Page | URL | What's there |
-|------|-----|-------------|
-| **Setup** | `/static/setup.html` | 3-step onboarding: farm name + Leaflet map pin + acres → pens (species/count/age/health) → fields (crop/acres/planting date). Light theme, 🌱 Reeboot logo. Posts to `/api/setup`. |
-| **Dashboard** | `/static/dashboard.html` (also `/`) | Live threat dashboard: Leaflet map with fire markers + spread ellipses, threat gauge, wind card, timeline slider. **Bottom grid: Act Now → Your Farm → What's at Risk.** Yellow setup-incomplete banner shown if `.farm_setup_done` is missing. |
-| **Financial** | `/static/financial.html` | KPI row, exposure donut, ROI bar charts, action queue, aid-program table with deadlines, **CCC-576 insurance card** (PDF preview tile + fields-filled progress bar + Download PDF CTA). Pen count in header chip; SVG flame badge with dynamic threat coloring. |
-| **Plan** | `/static/briefing.html` | Action briefing download/email page. Twin panels: language-selector + Download briefing button, recipient-email + ✉ Send briefing button. Visible go-bag checklist preview. Triggers n8n webhook on send. |
+**Navigation tabs** (same header bar across all pages): Overview | Livestock | Crops | Financial | Action Plan
 
-The emergency bar is the same across pages — single **↻ Refresh all agents** button calls `/api/run-pipeline`. Per-agent buttons removed in favor of the orchestrator.
+The header shows the farm name chip (name · acres · pen count) pulled live from `/api/farm-profile`, plus the current threat level badge (color-coded by level) and a **↻ Refresh** button that runs the full pipeline.
+
+---
+
+### Setup — `/static/setup.html`
+
+Three-step onboarding wizard:
+1. Farm name, interactive Leaflet map pin (click to place), total acres
+2. Pen inventory — species, head count, age class, health status, notes per pen
+3. Field inventory — crop type, acres, planting date per field
+
+Posts to `POST /api/setup` which writes `farm_config.json`, `farm_profile.json`, `farm_fields.json` and touches `.farm_setup_done`.
+
+---
+
+### Dashboard — `/static/dashboard.html` (root `/`)
+
+Split-screen hero: Leaflet ESRI satellite map (left) + threat stats panel (right). Below the hero scrolls a bottom grid.
+
+**Map:** VIIRS fire markers colored by intensity, Rothermel spread ellipses at 6h/12h/24h, farm location pin, farm radius circle scaled to actual acreage, per-pen markers, evacuation site markers. Map legend in bottom-left corner.
+
+**Threat stats panel (right column):**
+- Threat level hero — 48px/900-weight display text, color-coded by level
+- Fire Risk Score gauge — dynamically computed via `computeRiskScore()`:
+  - FWI component: up to 55 pts (`fwi / 30 × 55`, capped)
+  - Humidity bonus: 10 pts if < 15%, 7 pts if < 25%, 3 pts if < 40%
+  - Wind bonus: 8 pts if > 50 km/h, 5 pts if > 30, 3 pts if > 15
+  - Proximity pts: 30 at ≤ 10 km grading down to 1 at > 500 km
+  - Sum capped at 100 — never hardcoded to threat band
+- Key numbers: nearest fire distance, estimated time to reach farm (< 24h / < 72h / 72h+ with context-aware wording), FWI index
+- Environmental row: wind speed + direction, humidity, temperature
+- `gate_condition_reason` sub-text explains exactly which signal triggered the alert
+
+**Bottom grid — three cards:**
+- **Act Now** — crop field decisions from Crop Agent (HARVEST NOW / PARTIAL HARVEST / TRANSPLANT / MONITOR / ABANDON)
+- **Your Farm** — livestock pen status from Livestock Agent (per-pen evacuation decision, transport needed, OSRM-routed evac sites)
+- **What's at Risk** — financial exposure summary linking to Financial tab
+
+**Threat level logic** (Forecaster):
+| Condition | Level |
+|-----------|-------|
+| FWI ≥ 6 | GREEN |
+| FWI ≥ 9 or fire ≤ farmer fire threshold | WATCH |
+| FWI ≥ 12 or fire ≤ farmer fire threshold + NDVI trigger | WARNING |
+| FWI ≥ 20, or fire ≤ 75 km hard floor, or (FWI ≥ 12 + fire ≤ 300 km) | CRITICAL |
+| Combined multi-signal convergence above hard floors | EMERGENCY |
+
+FWI 12–20 without a nearby fire produces WARNING, not CRITICAL. Hard floor at 75 km fire distance always triggers at least CRITICAL regardless of FWI.
+
+---
+
+### Financial — `/static/financial.html`
+
+Full financial overview page. Reads `/api/econ`, `/api/policy`, `/api/insurance/status`.
+
+**KPI row (4 cards):**
+- Total Exposure — confidence-adjusted sum if no action taken
+- Crop Loss — confirmed abandoned + recoverable fields combined
+- Livestock at Risk — head count × value/head for unevacuated animals
+- Aid Programs — count of confirmed-eligible programs of total evaluated
+
+**Charts (Chart.js 4.4):**
+- **Exposure donut** — crop confirmed / crop recoverable / livestock / opportunity cost by USD segment
+- **Action ROI horizontal bar** — feasible actions sorted by ROI descending; color-coded IMMEDIATE (red) / HIGH (orange) / SCHEDULED (green)
+- **Cost to Act vs Loss Avoided grouped bar** — both feasible and infeasible actions side by side in USD
+- **Aid Program Eligibility donut** — confirmed / likely / check_required / ineligible counts
+
+**Program Deadlines timeline** — all aid programs with hard ISO dates, sorted by urgency. Days-remaining chips: red ≤ 30 days, amber ≤ 90, green otherwise.
+
+**Eligible Aid Programs table** — confirmed + likely + non-Grants.gov check_required programs. Columns: name/agency, eligibility status pill, deadline chip, estimated value, Apply link. Ineligible programs hidden by default.
+
+**CCC-576 Insurance Card:**
+- PDF preview tile (paper mockup with "PRE-FILLED" stamp)
+- Status pill: READY TO FILE (green, < 24h old) or STALE — RE-RUN (amber)
+- Meta grid: agency, 30-day filing deadline (urgent red), FSA office address, last generated timestamp
+- Fields progress bar: filled / total AcroForm fields with percentage, plus plain-English description of what was pre-filled vs what the farmer must complete in person
+- **Download CCC-576 PDF** CTA — streams directly from `/api/insurance/pdf`
+- **Regenerate** button — calls `POST /api/insurance/run` in-place without leaving the page
+
+---
+
+### Action Plan — `/static/briefing.html`
+
+PDF delivery page for the action briefing generated by the Report Agent.
+
+**Hero card — two side-by-side panels:**
+- **Download PDF panel** — language selector (populated from `/api/report/languages`), Download button calls `GET /api/report/pdf?lang=` and auto-generates if missing
+- **Send to stakeholder panel** — recipient email input, Send button posts to `POST /api/report/email` which fires the n8n webhook with the PDF as base64 plus a structured summary object; status feedback shown inline
+
+**What's in this report card** — numbered grid showing the 6 sections the PDF contains:
+1. Threat snapshot (level, fire, FWI, wind, time-to-impact)
+2. Livestock plan (per-pen decisions, evac sites, costs)
+3. Crop plan (field decisions, hydration, economic impact)
+4. Financial snapshot (exposure, ROI actions, blocked actions)
+5. Aid & insurance (CCC-576 reminder, top programs, deadlines)
+6. Evacuation go-bag checklist (personal docs, animal records, vehicle prep, contacts)
+
+**Go-Bag Checklist card** — printable inline version of the checklist with checkboxes across 6 categories (~30 items), matching what's in the PDF.
+
+---
+
+The emergency bar is the same across pages — single **↻ Refresh** button calls `/api/run-pipeline`. Per-agent buttons removed in favor of the orchestrator.
 
 ---
 

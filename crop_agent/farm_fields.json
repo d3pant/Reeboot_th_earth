@@ -1,13 +1,13 @@
 {
   "farm_id": "farm_001",
-  "farm_name": "Moi farm",
+  "farm_name": "My Farm",
   "fields": [
     {
       "field_id": "F1",
       "crop_category": "avocado",
       "location": {
-        "lat": 32.7346,
-        "lon": -116.7366
+        "lat": 33.1283,
+        "lon": -116.6482
       },
       "size_acres": 20.0,
       "planting_date": "2023-01-01"

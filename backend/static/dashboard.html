@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agripal — Farm Fire Dashboard</title>
+  <title>Agropal — Farm Fire Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap" rel="stylesheet">
@@ -351,7 +351,7 @@
 
 <!-- ── Header ── -->
 <div id="header">
-  <a id="logo" href="/">Agripal</a>
+  <a id="logo" href="/">Agropal</a>
   <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
   <div id="farm-info-chip" style="display:flex;align-items:center;gap:8px;padding:4px 12px;background:var(--cream);border:1px solid var(--border);border-radius:20px;font-size:12px;">
     <span id="farm-name-hdr" style="font-weight:700;color:var(--text);">—</span>
@@ -439,9 +439,9 @@
         <div class="sp-metric-sub" id="time-reach-sub">At current wind</div>
       </div>
       <div class="sp-metric">
-        <div class="sp-micro-label">Money at Risk</div>
+        <div class="sp-micro-label">Expected Loss</div>
         <div class="sp-metric-big" id="money-loss" style="color:var(--fire);">$—</div>
-        <div class="sp-metric-sub">If no action taken</div>
+        <div class="sp-metric-sub" id="money-loss-sub">Probability-adjusted</div>
       </div>
     </div>
 
@@ -671,8 +671,52 @@ function renderHeader() {
     document.getElementById("farm-name-hdr").textContent = prof.farm_name || "Your Farm";
     document.getElementById("farm-acres-hdr").textContent = (prof.total_acres || "—") + " ac";
     document.getElementById("farm-pens-hdr").textContent = (prof.pens?.length || "—") + " pen" + (prof.pens?.length !== 1 ? "s" : "");
-    document.title = `${prof.farm_name} — Agripal`;
+    document.title = `${prof.farm_name} — Agropal`;
   }
+}
+
+// ── Dynamic fire risk score (computed from real weather + proximity data) ──
+function computeRiskScore(f) {
+  const fwi  = f.fwi_index ?? 0;
+  const hum  = f.humidity_percent ?? 50;
+  const wind = f.wind_speed_kmh ?? 0;
+  const dist = f.nearest_fire?.distance_km ?? 1000;
+
+  // Fire-weather danger (0–55 pts): FWI normalized, boosted by low humidity
+  const fwiPts  = Math.min(55, (fwi / 30) * 55);
+  const humBonus  = hum < 15 ? 10 : hum < 25 ? 7 : hum < 40 ? 3 : 0;
+  const windBonus = wind > 50 ? 8  : wind > 30 ? 5 : wind > 15 ? 3 : 1;
+
+  // Active fire proximity (0–30 pts): drops off sharply beyond 100 km
+  const proxPts = dist <= 10  ? 30 : dist <= 25  ? 24 : dist <= 50  ? 18 :
+                  dist <= 75  ? 13 : dist <= 100 ?  9 : dist <= 200 ?  5 :
+                  dist <= 500 ?  2 : 1;
+
+  return Math.min(100, Math.round(fwiPts + humBonus + windBonus + proxPts));
+}
+
+// Probability-adjusted loss factor: risk score × fire trajectory discount.
+// Answers: given current conditions AND fire direction, what fraction of max
+// exposure is realistically at stake right now?
+function computeProbabilityFactor(f) {
+  const riskScore = computeRiskScore(f);         // 0–100, weather + proximity
+  const sp  = f.spread_prediction || {};
+  const ttf = sp.time_to_farm;
+
+  let prob = riskScore / 100;
+
+  if (ttf && !ttf.threatened) {
+    // Fire is NOT heading toward farm — discount by how far off-axis it is.
+    // angDiff 0° = spreading straight at you (no discount)
+    // angDiff 90° = spreading sideways (large discount)
+    // angDiff 180° = spreading directly away (maximum discount)
+    const angDiff = Math.min(ttf.angular_diff_deg ?? 90, 180);
+    // dirFactor: 1.0 at 0°, 0.15 at ≥90° (fire clearly not heading your way)
+    const dirFactor = Math.max(0.15, 1 - (Math.min(angDiff, 90) / 90) * 0.85);
+    prob *= dirFactor;
+  }
+
+  return Math.max(0.01, Math.min(1.0, prob));
 }
 
 // ── Stat cards ──
@@ -682,38 +726,67 @@ function renderStatCards() {
   const sp = f.spread_prediction || {};
   const meta = THREAT_META[f.threat_level] || THREAT_META.GREEN;
 
+  // Computed risk score from real data (not hardcoded to threat level band)
+  const riskPct = computeRiskScore(f);
+
   // Threat display (big hero text)
   const THREAT_DISPLAY = { GREEN:"Low Risk", WATCH:"Watch", WARNING:"Warning", CRITICAL:"Critical", EMERGENCY:"Emergency" };
   const tdEl = document.getElementById("threat-display");
   tdEl.textContent = THREAT_DISPLAY[f.threat_level] || f.threat_level || "—";
   tdEl.style.color = meta.color;
 
-  // Risk gauge
-  document.getElementById("risk-pct").textContent = meta.pct + "%";
+  // Risk gauge — use computed score
+  document.getElementById("risk-pct").textContent = riskPct + "%";
   document.getElementById("risk-pct").style.color = meta.color;
   document.getElementById("risk-level").textContent = meta.label;
   document.getElementById("risk-level").style.color = meta.color;
+
+  // Sub-text: show gate condition reason if available, else distance
+  const reason = f.gate_condition_reason;
   const distKm = f.nearest_fire?.distance_km?.toFixed(1) || "—";
-  document.getElementById("risk-sub").textContent = `Nearest fire ${distKm} km from your farm`;
+  if (reason) {
+    // Trim to first clause (before semicolon) so it fits
+    const shortReason = reason.split(";")[0].trim();
+    document.getElementById("risk-sub").textContent = shortReason + ` · fire ${distKm} km away`;
+  } else {
+    document.getElementById("risk-sub").textContent = `Nearest fire ${distKm} km from your farm`;
+  }
+
+  // Gauge stroke from computed score
   const circ = 2 * Math.PI * 28;
-  const offset = circ * (1 - meta.pct / 100);
-  document.getElementById("gauge-fill").style.strokeDashoffset = offset;
+  document.getElementById("gauge-fill").style.strokeDashoffset = circ * (1 - riskPct / 100);
   document.getElementById("gauge-fill").style.stroke = meta.color;
 
-  // Money at risk — prefer econ agent total, fall back to estimates
+  // Money at risk — probability-adjusted using risk score + fire trajectory
   const totalLoss = econData?.financial_exposure?.total_exposure_usd
     || (livestockData?.evacuation_optimization?.summary?.potential_loss_usd || 0)
     + (cropData?.economic_impact?.total_estimated_loss_usd || 0)
     || livestockData?.animals_at_risk_usd || 0;
-  document.getElementById("money-loss").textContent = fmt$(totalLoss);
+  const probFactor   = computeProbabilityFactor(f);
+  const probPct      = Math.round(probFactor * 100);
+  const expectedLoss = Math.round(totalLoss * probFactor);
+  const moneyEl  = document.getElementById("money-loss");
+  const moneySubEl = document.getElementById("money-loss-sub");
+  moneyEl.textContent = fmt$(expectedLoss);
+  if (moneySubEl) {
+    moneySubEl.textContent = `${probPct}% probability · worst case ${fmt$(totalLoss)}`;
+  }
 
-  // Time to reach
+  // Time to reach — context-aware text based on actual hours
   const ttf = sp.time_to_farm;
   if (ttf) {
     if (ttf.threatened && ttf.hours) {
       document.getElementById("time-reach").textContent = fmtH(ttf.hours);
-      document.getElementById("time-reach").style.color = "var(--fire)";
-      document.getElementById("time-reach-sub").textContent = "Fire heading toward farm";
+      if (ttf.hours < 24) {
+        document.getElementById("time-reach").style.color = "var(--fire)";
+        document.getElementById("time-reach-sub").textContent = "Fire heading toward farm";
+      } else if (ttf.hours < 72) {
+        document.getElementById("time-reach").style.color = "var(--orange)";
+        document.getElementById("time-reach-sub").textContent = "Possible fire path · days away";
+      } else {
+        document.getElementById("time-reach").style.color = "var(--text2)";
+        document.getElementById("time-reach-sub").textContent = "Theoretical reach at current spread rate";
+      }
     } else {
       const wc = ttf.hours_worst_case;
       document.getElementById("time-reach").textContent = wc ? fmtH(wc) : "—";
@@ -727,7 +800,23 @@ function renderStatCards() {
   const windDir = windCardinal(f.wind_direction_degrees || 0);
   const downwindDir = windCardinal(((f.wind_direction_degrees || 0) + 180) % 360);
   document.getElementById("wind-now").textContent = `${windDir} → ${downwindDir}  ${windSpeed} km/h`;
-  document.getElementById("wind-sub").textContent = "Blowing toward your crops";
+
+  // Wind sub-text: describe whether fire is actually spreading toward farm
+  let windSub = "Blowing " + windDir + " → " + downwindDir;
+  if (sp?.time_to_farm) {
+    const ttf = sp.time_to_farm;
+    const angDiff = ttf.angular_diff_deg ?? 180;
+    if (ttf.threatened) {
+      windSub = "Fire spreading toward your farm";
+    } else if (angDiff < 60) {
+      windSub = "Spreading close to your direction — monitor";
+    } else {
+      const spreadCardinal = windCardinal(((f.wind_direction_degrees || 0) + 180) % 360);
+      windSub = `Fire spreading ${spreadCardinal} — away from your farm`;
+    }
+  }
+  document.getElementById("wind-sub").textContent = windSub;
+
   document.getElementById("wc-wind").textContent = `${windSpeed} km/h`;
   document.getElementById("wc-dir").textContent = `${windDir} → ${downwindDir}`;
 
@@ -1066,8 +1155,9 @@ function renderRiskBreakdown() {
   const total       = exp.total_exposure_usd      || (animalVal + cropLoss + oppLoss);
   const maxVal      = total || 1;
 
-  const meta = THREAT_META[forecastData.threat_level] || THREAT_META.GREEN;
-  const expectedLoss = Math.round(total * meta.pct / 100);
+  const probFactor   = computeProbabilityFactor(forecastData);
+  const probPct      = Math.round(probFactor * 100);
+  const expectedLoss = Math.round(total * probFactor);
 
   el.innerHTML = `
     <div class="risk-row">
@@ -1094,14 +1184,26 @@ function renderRiskBreakdown() {
       ).join("") : "";
   if (cropBreakdownHtml) el.innerHTML += cropBreakdownHtml;
 
-  // Clear any previously inserted risk-total rows before adding new one
-  el.parentElement.querySelectorAll(".risk-total").forEach(n => n.remove());
-  el.insertAdjacentHTML("afterend", `<div class="risk-total" style="display:flex;justify-content:space-between;padding-top:12px;border-top:2px solid var(--border);font-weight:700;font-size:14px;margin-top:4px;"><span>Total exposure</span><span style="color:var(--fire);">${fmt$(total)}</span></div>`);
+  // Clear any previously inserted summary rows before re-rendering
+  el.parentElement.querySelectorAll(".risk-total, .risk-expected-row").forEach(n => n.remove());
+
+  // Worst-case total + probability-adjusted expected loss
+  el.insertAdjacentHTML("afterend", `
+    <div class="risk-total risk-expected-row" style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0 6px;border-top:2px solid var(--border);margin-top:4px;">
+      <span style="font-size:13px;color:var(--text2);">Worst-case total</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text2);">${fmt$(total)}</span>
+    </div>
+    <div class="risk-total risk-expected-row" style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0 0;">
+      <span style="font-size:14px;font-weight:700;">Expected at ${probPct}% probability</span>
+      <span style="font-size:14px;font-weight:700;color:var(--fire);">${fmt$(expectedLoss)}</span>
+    </div>
+    <div class="risk-expected-row" style="font-size:11px;color:var(--text3);margin-top:5px;">
+      Risk score × fire trajectory factor. If fire turns toward farm: ${fmt$(total)}.
+    </div>
+  `);
 
   const expEl = document.getElementById("risk-expected");
-  expEl.style.display = "block";
-  document.getElementById("risk-exp-label").textContent = `Expected loss at ${meta.pct}% risk:`;
-  document.getElementById("risk-exp-val").textContent = fmt$(expectedLoss);
+  if (expEl) expEl.style.display = "none"; // replaced by inline rows above
 }
 
 // ── Agent runners ──
