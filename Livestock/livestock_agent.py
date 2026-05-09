@@ -10,7 +10,7 @@ from typing import Optional, Dict, List, Any
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / "crop_agent" / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -230,49 +230,40 @@ def compute_evacuation_optimization(pens_output: List[Dict], farm: Dict[str, Any
 
 
 async def fetch_usda_prices(client: httpx.AsyncClient) -> Dict[str, float]:
-    """Fetch live USDA NASS livestock prices from QuickStats API"""
-    try:
-        logger.info("Fetching live USDA NASS livestock prices")
-        # USDA NASS QuickStats commodities
-        commodities = {
-            "cattle": "CATTLE, FEEDER, PRICE RECEIVED",
-            "horse": "HORSES",
-            "sheep": "SHEEP & LAMBS, PRICE RECEIVED",
-            "pig": "HOGS, PRICE RECEIVED",
-            "goat": "GOATS"
-        }
-
-        prices = {}
-        for species, commodity in commodities.items():
-            try:
-                url = "https://quickstats.nass.usda.gov/api/api_GET/"
-                params = {
-                    "key": os.getenv("USDA_NASS_API_KEY", ""),
-                    "commodity_desc": commodity,
-                    "statisticcat_desc": "PRICE RECEIVED",
-                    "year": str(datetime.now().year - 1),
-                    "format": "JSON"
-                }
-                response = await client.get(url, params=params, timeout=5.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("data"):
-                        # Get most recent price
-                        price = float(data["data"][0].get("Value", USDA_NASS_PRICES[species]))
-                        prices[species] = price
-                        logger.info(f"USDA NASS {species}: ${price:.2f}/head")
-                    else:
-                        prices[species] = USDA_NASS_PRICES[species]
-                else:
-                    prices[species] = USDA_NASS_PRICES[species]
-            except Exception as e:
-                logger.warning(f"USDA NASS {species} error: {e}. Using default: ${USDA_NASS_PRICES[species]}")
-                prices[species] = USDA_NASS_PRICES[species]
-
-        return prices
-    except Exception as e:
-        logger.warning(f"USDA NASS fetch failed: {e}. Using default prices.")
+    """Fetch live USDA NASS prices if API key is set, otherwise use 2024 hardcoded values."""
+    api_key = os.getenv("USDA_NASS_API_KEY", "")
+    if not api_key:
+        logger.info("USDA_NASS_API_KEY not set — using hardcoded 2024 prices")
         return USDA_NASS_PRICES
+
+    commodities = {
+        "cattle": "CATTLE, FEEDER",
+        "horse": "HORSES",
+        "sheep": "SHEEP & LAMBS",
+        "pig": "HOGS",
+        "goat": "GOATS"
+    }
+    prices = {}
+    for species, commodity in commodities.items():
+        try:
+            url = "https://quickstats.nass.usda.gov/api/api_GET/"
+            params = {
+                "key": api_key,
+                "commodity_desc": commodity,
+                "statisticcat_desc": "PRICE RECEIVED",
+                "year": str(datetime.now().year - 1),
+                "format": "JSON"
+            }
+            response = await client.get(url, params=params, timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("data"):
+                    prices[species] = float(data["data"][0].get("Value", USDA_NASS_PRICES[species]))
+                    continue
+        except Exception as e:
+            logger.warning(f"USDA NASS {species}: {e}")
+        prices[species] = USDA_NASS_PRICES[species]
+    return prices
 
 
 async def query_calaes(client: httpx.AsyncClient, lat: float, lon: float) -> List[Dict[str, Any]]:
@@ -366,20 +357,19 @@ async def compute_routes_for_pen(
     pen_id = pen["pen_id"]
     pen_lat, pen_lon = pen["centroid"]["lat"], pen["centroid"]["lon"]
 
+    results = await asyncio.gather(
+        *[query_osrm(client, pen_lat, pen_lon, site["lat"], site["lon"]) for site in sites],
+        return_exceptions=True
+    )
     routes = []
-    for i, site in enumerate(sites):
-        if i > 0 and i % 5 == 0:
-            await asyncio.sleep(0.5)
-
-        result = await query_osrm(client, pen_lat, pen_lon, site["lat"], site["lon"])
-        if result:
+    for site, result in zip(sites, results):
+        if result and not isinstance(result, Exception):
             routes.append({
                 "site": site,
                 "duration_hours": result["duration_hours"],
                 "distance_km": result["distance_km"],
                 "source": result["source"]
             })
-
     pen_routes[pen_id] = routes
 
 
@@ -452,8 +442,9 @@ async def main():
             logger.info(f"Pen {pen['pen_id']} ({species}): ${pen['avg_market_value_usd']}/head")
 
         pen_routes: Dict[str, List[Dict]] = {}
-        for pen in farm["pens"]:
-            await compute_routes_for_pen(client, pen, evac_sites, pen_routes)
+        await asyncio.gather(
+            *[compute_routes_for_pen(client, pen, evac_sites, pen_routes) for pen in farm["pens"]]
+        )
 
         threat_level = status["threat_level"]
         if threat_level == "WATCH":
@@ -558,101 +549,46 @@ async def main():
         evac_optimization = compute_evacuation_optimization(pens_output, farm, affected_zones.get("Z1", 11.0))
         logger.info(f"Evacuation Optimization: Can save ${evac_optimization['summary']['value_can_save_usd']:,.0f} of ${evac_optimization['summary']['value_can_save_usd'] + evac_optimization['summary']['potential_loss_usd']:,.0f}")
 
+        # Neighbor pooling — haversine only (no OSRM calls) for speed
         pool_blocks = []
-        neighbors = neighbors_data.get("farms", [])
-
-        for neighbor in neighbors:
+        our_species = {pen["species"] for pen in farm["pens"]}
+        our_best_sites = {
+            p["assigned_evac_site"]["name"]: p["assigned_evac_site"]
+            for p in pens_output if p["assigned_evac_site"]
+        }
+        for neighbor in neighbors_data.get("farms", []):
             neighbor_id = neighbor["farm_id"]
             neighbor_centroid = neighbor["centroid"]
-            neighbor_species = set(neighbor.get("species", []))
-
-            our_species = {pen["species"] for pen in farm["pens"]}
-            if not our_species & neighbor_species:
+            if not our_species & set(neighbor.get("species", [])):
                 continue
-
-            our_best_sites = {
-                p["assigned_evac_site"]["name"]: p["assigned_evac_site"]
-                for p in pens_output
-                if p["assigned_evac_site"]
-            }
-
+            distance_km = haversine(farm_centroid["lat"], farm_centroid["lon"],
+                                    neighbor_centroid["lat"], neighbor_centroid["lon"])
+            if distance_km > 20:
+                continue
             neighbor_best_sites = set()
-            for neighbor_pen in neighbor.get("pens", []):
-                n_pen_id = neighbor_pen["pen_id"]
-                n_species = neighbor_pen["species"]
-                n_lat, n_lon = neighbor_pen["centroid"]["lat"], neighbor_pen["centroid"]["lon"]
-
-                best_neighbor_site = None
-                best_neighbor_duration = float("inf")
-
-                for site in evac_sites:
-                    result = await query_osrm(client, n_lat, n_lon, site["lat"], site["lon"])
-                    if result and result["duration_hours"] < best_neighbor_duration:
-                        best_neighbor_duration = result["duration_hours"]
-                        best_neighbor_site = site["name"]
-
-                if best_neighbor_site:
-                    neighbor_best_sites.add(best_neighbor_site)
-
-            common_sites = set(our_best_sites.keys()) & neighbor_best_sites
-            if not common_sites:
-                continue
-
-            for common_site in common_sites:
+            for n_pen in neighbor.get("pens", []):
+                n_lat, n_lon = n_pen["centroid"]["lat"], n_pen["centroid"]["lon"]
+                best = min(evac_sites, key=lambda s: haversine(n_lat, n_lon, s["lat"], s["lon"]))
+                neighbor_best_sites.add(best["name"])
+            for common_site in set(our_best_sites.keys()) & neighbor_best_sites:
                 site_obj = our_best_sites[common_site]
-                site_lat, site_lon = site_obj["lat"], site_obj["lon"]
-                distance_km = haversine(farm_centroid["lat"], farm_centroid["lon"], neighbor_centroid["lat"], neighbor_centroid["lon"])
-
-                if distance_km > 20:
-                    continue
-
-                pool_route = await compute_pool_route(
-                    client,
-                    farm_centroid["lat"], farm_centroid["lon"],
-                    neighbor_centroid["lat"], neighbor_centroid["lon"],
-                    site_lat, site_lon
-                )
-
-                if not pool_route:
-                    continue
-
-                our_total = 0
-                for pen in pens_output:
-                    if pen["assigned_evac_site"] and pen["assigned_evac_site"]["name"] == common_site:
-                        our_total += pen["route_duration_hours"]
-
-                neighbor_total = 0
-                for n_pen in neighbor.get("pens", []):
-                    n_lat, n_lon = n_pen["centroid"]["lat"], n_pen["centroid"]["lon"]
-                    result = await query_osrm(client, n_lat, n_lon, site_lat, site_lon)
-                    if result:
-                        neighbor_total += result["duration_hours"]
-
-                time_saved = (our_total + neighbor_total) - pool_route["total_duration_hours"]
-                time_saved_minutes = time_saved * 60
-
+                our_total = sum(p["route_duration_hours"] for p in pens_output
+                                if p["assigned_evac_site"] and p["assigned_evac_site"]["name"] == common_site
+                                and p["route_duration_hours"])
+                detour_km = (haversine(farm_centroid["lat"], farm_centroid["lon"],
+                                       neighbor_centroid["lat"], neighbor_centroid["lon"]) +
+                             haversine(neighbor_centroid["lat"], neighbor_centroid["lon"],
+                                       site_obj["lat"], site_obj["lon"]))
+                pool_duration = (detour_km * 1.35) / 60.0
+                time_saved_minutes = (our_total - pool_duration) * 60
                 if time_saved_minutes < 15:
                     continue
-
-                return_trip = await compute_return_trip(
-                    client,
-                    site_lat, site_lon,
-                    neighbor_centroid["lat"], neighbor_centroid["lon"],
-                    site_lat, site_lon
-                )
-
-                return_assist = False
-                if return_trip:
-                    neighbor_standalone = neighbor_total
-                    if (return_trip["total_duration_hours"] * 60) < (neighbor_standalone * 60 - 20):
-                        return_assist = True
-
                 pool_blocks.append({
                     "pool_id": f"pool_{farm['farm_id']}_{neighbor_id}_{common_site.replace(' ', '_')}",
                     "farms_involved": [farm["farm_id"], neighbor_id],
                     "shared_route_summary": f"{farm['farm_id']} -> {neighbor_id} -> {common_site}",
-                    "time_saved_minutes": time_saved_minutes,
-                    "return_trip_assist": return_assist,
+                    "time_saved_minutes": round(time_saved_minutes, 1),
+                    "return_trip_assist": False,
                     "estimated_cost_sharing_usd": round(time_saved_minutes * 5, 2)
                 })
 

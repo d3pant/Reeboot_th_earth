@@ -99,7 +99,7 @@ async def _fetch_firms_csv(area: str) -> list[dict]:
 def index():
     if not SETUP_SENTINEL.exists():
         return RedirectResponse("/static/setup.html")
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    return FileResponse(Path(__file__).parent / "static" / "dashboard.html")
 
 
 @app.get("/api/fires")
@@ -394,6 +394,7 @@ def get_status():
         with open(profile_path) as f:
             profile = json.load(f)
         data["total_acres"] = profile.get("total_acres")
+        data["farm_name"] = profile.get("farm_name")
     return JSONResponse(data)
 
 

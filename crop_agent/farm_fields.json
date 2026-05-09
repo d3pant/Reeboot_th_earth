@@ -1,13 +1,13 @@
 {
   "farm_id": "farm_001",
-  "farm_name": "MODI FARMS",
+  "farm_name": "qq",
   "fields": [
     {
       "field_id": "F1",
       "crop_category": "avocado",
       "location": {
-        "lat": 33.2354,
-        "lon": -117.1193
+        "lat": 33.2357,
+        "lon": -117.1997
       },
       "size_acres": 20.0,
       "planting_date": "2023-01-01"

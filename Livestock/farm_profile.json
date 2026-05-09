@@ -1,9 +1,9 @@
 {
   "farm_id": "farm_001",
-  "farm_name": "MODI FARMS",
+  "farm_name": "qq",
   "centroid": {
-    "lat": 33.2324,
-    "lon": -117.1173
+    "lat": 33.2327,
+    "lon": -117.1977
   },
   "total_acres": 10.0,
   "pens": [
@@ -17,36 +17,8 @@
       "health_status": "healthy",
       "avg_market_value_usd": 1450,
       "centroid": {
-        "lat": 33.23274,
-        "lon": -117.11744
-      }
-    },
-    {
-      "pen_id": "pen_002",
-      "zone": "Z1",
-      "name": "Sheep Pen 2",
-      "species": "sheep",
-      "count": 20,
-      "age_distribution": "adult",
-      "health_status": "mixed",
-      "avg_market_value_usd": 350,
-      "centroid": {
-        "lat": 33.23282,
-        "lon": -117.11716
-      }
-    },
-    {
-      "pen_id": "pen_003",
-      "zone": "Z2",
-      "name": "Pig Pen 3",
-      "species": "pig",
-      "count": 20,
-      "age_distribution": "adult",
-      "health_status": "healthy",
-      "avg_market_value_usd": 550,
-      "centroid": {
-        "lat": 33.23189,
-        "lon": -117.11744
+        "lat": 33.23304,
+        "lon": -117.19784
       }
     }
   ],

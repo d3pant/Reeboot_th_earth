@@ -1,49 +1,15 @@
 {
   "sender": "livestock_agent",
-  "timestamp": "2026-05-09T05:20:52.079229+00:00",
+  "timestamp": "2026-05-09T05:56:20.601001+00:00",
   "evacuation_status": "in_progress",
-  "animal_valuation_at_risk": 90500,
-  "transport_costs_usd": 1350,
+  "animal_valuation_at_risk": 72500,
+  "transport_costs_usd": 750,
   "blockers": [],
-  "transport_pool": [
-    {
-      "pool_id": "pool_farm_001_farm_sdge_002_Del_Mar_Fairgrounds",
-      "farms_involved": [
-        "farm_001",
-        "farm_sdge_002"
-      ],
-      "shared_route_summary": "farm_001 -> farm_sdge_002 -> Del Mar Fairgrounds",
-      "time_saved_minutes": 165.96,
-      "return_trip_assist": false,
-      "estimated_cost_sharing_usd": 829.8
-    },
-    {
-      "pool_id": "pool_farm_001_farm_sdge_003_Del_Mar_Fairgrounds",
-      "farms_involved": [
-        "farm_001",
-        "farm_sdge_003"
-      ],
-      "shared_route_summary": "farm_001 -> farm_sdge_003 -> Del Mar Fairgrounds",
-      "time_saved_minutes": 164.3366666666667,
-      "return_trip_assist": false,
-      "estimated_cost_sharing_usd": 821.68
-    },
-    {
-      "pool_id": "pool_farm_001_farm_sdge_004_Del_Mar_Fairgrounds",
-      "farms_involved": [
-        "farm_001",
-        "farm_sdge_004"
-      ],
-      "shared_route_summary": "farm_001 -> farm_sdge_004 -> Del Mar Fairgrounds",
-      "time_saved_minutes": 204.89166666666668,
-      "return_trip_assist": true,
-      "estimated_cost_sharing_usd": 1024.46
-    }
-  ],
+  "transport_pool": [],
   "cost_optimization": {
-    "total_animals_at_risk": 90,
-    "animals_can_evacuate": 90,
-    "value_can_save_usd": 90500,
+    "total_animals_at_risk": 50,
+    "animals_can_evacuate": 50,
+    "value_can_save_usd": 72500,
     "potential_loss_usd": 0,
     "loss_percentage": 0.0
   },
