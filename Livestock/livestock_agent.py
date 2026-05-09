@@ -2,11 +2,15 @@ import asyncio
 import json
 import logging
 import math
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / "crop_agent" / ".env")
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -91,98 +95,137 @@ def compute_priority_score(pen: Dict[str, Any], time_to_impact_hours: float) -> 
 
 
 def compute_evacuation_optimization(pens_output: List[Dict], farm: Dict[str, Any], time_available_hours: float) -> Dict[str, Any]:
-    """Optimize evacuation sequence based on transport capacity and time constraints"""
+    """
+    Minimize financial loss under hard truck capacity.
+
+    Scoring per pen (fractional knapsack with urgency):
+      score = 0.6 * (value_per_head / max_value_per_head)
+            + 0.4 * urgency
+    where urgency = 1 - clamp(route_hours / time_to_impact, 0, 1).
+    Pens that fit entirely go first (sorted by score desc), then partial fill
+    of the highest-value remaining pen to use every slot.
+    """
     vehicle_capacity = farm.get("infrastructure", {}).get("vehicle_capacity_head", 150)
     available_trailers = farm.get("infrastructure", {}).get("available_trailers", 1)
 
-    # Calculate trips needed
-    trips_available = available_trailers * 2  # round trip
-    total_capacity = vehicle_capacity * trips_available
-
-    # Get evacuable pens (those with decision == "evacuate")
-    evacuable_pens = [p for p in pens_output if p["decision"] == "evacuate"]
-
-    total_evacuable = sum(
-        next((pen["count"] for pen in farm["pens"] if pen["pen_id"] == p["pen_id"]), 0)
-        for p in evacuable_pens
+    # Realistic trips: time_available / (2 * avg_route_time), min 1
+    evacuable_pens_raw = [p for p in pens_output if p["decision"] == "evacuate"]
+    avg_route = (
+        sum(p["route_duration_hours"] for p in evacuable_pens_raw) / len(evacuable_pens_raw)
+        if evacuable_pens_raw else 1.0
     )
+    trips_per_trailer = max(1, int(time_available_hours / (2 * avg_route)))
+    total_capacity = vehicle_capacity * available_trailers * trips_per_trailer
 
-    # Rank by value/time ratio (maximize value saved per hour of evacuation)
-    pens_with_value = []
-    for p in evacuable_pens:
-        pen_data = next((pen for pen in farm["pens"] if pen["pen_id"] == p["pen_id"]), None)
-        if pen_data:
-            total_value = pen_data["count"] * pen_data["avg_market_value_usd"]
-            evac_hours = p["route_duration_hours"]
-            value_per_hour = total_value / max(evac_hours, 0.1)
-            pens_with_value.append({
-                "pen_id": p["pen_id"],
-                "count": pen_data["count"],
-                "total_value": total_value,
-                "evac_hours": evac_hours,
-                "value_per_hour": value_per_hour
-            })
+    pen_lookup = {pen["pen_id"]: pen for pen in farm["pens"]}
 
-    # Sort by value_per_hour (highest value per hour first)
-    pens_with_value.sort(key=lambda x: x["value_per_hour"], reverse=True)
+    candidates = []
+    for p in evacuable_pens_raw:
+        pen_data = pen_lookup.get(p["pen_id"])
+        if not pen_data:
+            continue
+        count = pen_data["count"]
+        price = pen_data["avg_market_value_usd"]
+        total_value = count * price
+        route_hrs = p["route_duration_hours"] or avg_route
+        candidates.append({
+            "pen_id": p["pen_id"],
+            "species": p["species"],
+            "count": count,
+            "price_per_head": price,
+            "total_value": total_value,
+            "route_hours": route_hrs,
+        })
 
-    # Greedily assign evacuation slots
+    if not candidates:
+        return {
+            "transport_capacity": {"vehicles": available_trailers, "capacity_per_vehicle": vehicle_capacity,
+                                   "total_capacity": total_capacity, "trips_per_trailer": trips_per_trailer},
+            "evacuation_sequence": [],
+            "summary": {"total_animals_at_risk": 0, "animals_can_evacuate": 0,
+                        "value_can_save_usd": 0, "potential_loss_usd": 0, "loss_percentage": 0}
+        }
+
+    max_price = max(c["price_per_head"] for c in candidates)
+
+    for c in candidates:
+        urgency = 1.0 - min(c["route_hours"] / max(time_available_hours, 0.1), 1.0)
+        c["score"] = 0.6 * (c["price_per_head"] / max_price) + 0.4 * urgency
+
+    # Sort highest score first — this is the load order for the trucks
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+
     evacuation_plan = []
-    animals_evacuated = 0
-    value_saved = 0
+    remaining_capacity = total_capacity
+    value_saved = 0.0
 
-    for pen in pens_with_value:
-        if animals_evacuated + pen["count"] <= total_capacity:
+    for pen in candidates:
+        if remaining_capacity <= 0:
             evacuation_plan.append({
                 "sequence": len(evacuation_plan) + 1,
                 "pen_id": pen["pen_id"],
+                "species": pen["species"],
                 "count": pen["count"],
-                "value": pen["total_value"],
-                "status": "CAN_EVACUATE",
-                "reason": f"Prioritized: ${pen['value_per_hour']:.0f}/hour value efficiency"
+                "value_usd": pen["total_value"],
+                "animals_saved": 0,
+                "value_saved_usd": 0,
+                "status": "MUST_SHELTER",
+                "reason": f"No capacity — load higher-value pens first (score {pen['score']:.2f})",
             })
-            animals_evacuated += pen["count"]
+            continue
+
+        if pen["count"] <= remaining_capacity:
+            # Full pen fits
+            evacuation_plan.append({
+                "sequence": len(evacuation_plan) + 1,
+                "pen_id": pen["pen_id"],
+                "species": pen["species"],
+                "count": pen["count"],
+                "value_usd": pen["total_value"],
+                "animals_saved": pen["count"],
+                "value_saved_usd": pen["total_value"],
+                "status": "EVACUATE",
+                "reason": f"score {pen['score']:.2f} | ${pen['price_per_head']:,}/head | {pen['route_hours']:.1f}h route",
+            })
+            remaining_capacity -= pen["count"]
             value_saved += pen["total_value"]
         else:
-            remaining_capacity = total_capacity - animals_evacuated
-            if remaining_capacity > 0:
-                evacuation_plan.append({
-                    "sequence": len(evacuation_plan) + 1,
-                    "pen_id": pen["pen_id"],
-                    "count": pen["count"],
-                    "value": pen["total_value"],
-                    "status": "PARTIAL",
-                    "reason": f"Limited capacity: {remaining_capacity} slots left"
-                })
-                animals_evacuated += remaining_capacity
-                value_saved += (pen["total_value"] * remaining_capacity / pen["count"])
-            else:
-                evacuation_plan.append({
-                    "sequence": len(evacuation_plan) + 1,
-                    "pen_id": pen["pen_id"],
-                    "count": pen["count"],
-                    "value": pen["total_value"],
-                    "status": "MUST_SHELTER",
-                    "reason": "No transport capacity remaining"
-                })
+            # Partial — fill every remaining slot with the highest-value animals
+            partial_value = round(pen["total_value"] * remaining_capacity / pen["count"], 2)
+            evacuation_plan.append({
+                "sequence": len(evacuation_plan) + 1,
+                "pen_id": pen["pen_id"],
+                "species": pen["species"],
+                "count": pen["count"],
+                "value_usd": pen["total_value"],
+                "animals_saved": remaining_capacity,
+                "value_saved_usd": partial_value,
+                "status": "PARTIAL",
+                "reason": f"Only {remaining_capacity} slots left of {pen['count']} — take highest-value animals first",
+            })
+            value_saved += partial_value
+            remaining_capacity = 0
 
-    potential_loss = sum(p["total_value"] for p in pens_with_value) - value_saved
+    total_value_at_risk = sum(c["total_value"] for c in candidates)
+    potential_loss = total_value_at_risk - value_saved
+    total_animals = sum(c["count"] for c in candidates)
+    animals_saved = sum(e["animals_saved"] for e in evacuation_plan)
 
     return {
         "transport_capacity": {
             "vehicles": available_trailers,
             "capacity_per_vehicle": vehicle_capacity,
+            "trips_per_trailer": trips_per_trailer,
             "total_capacity": total_capacity,
-            "trips_available": trips_available
         },
         "evacuation_sequence": evacuation_plan,
         "summary": {
-            "total_animals_at_risk": total_evacuable,
-            "animals_can_evacuate": animals_evacuated,
+            "total_animals_at_risk": total_animals,
+            "animals_can_evacuate": animals_saved,
             "value_can_save_usd": round(value_saved, 2),
             "potential_loss_usd": round(potential_loss, 2),
-            "loss_percentage": round((potential_loss / sum(p["total_value"] for p in pens_with_value)) * 100, 1) if pens_with_value else 0
-        }
+            "loss_percentage": round(potential_loss / total_value_at_risk * 100, 1) if total_value_at_risk else 0,
+        },
     }
 
 
@@ -202,14 +245,13 @@ async def fetch_usda_prices(client: httpx.AsyncClient) -> Dict[str, float]:
         prices = {}
         for species, commodity in commodities.items():
             try:
-                url = "https://quickstats.nass.usda.gov/api/api_GET"
+                url = "https://quickstats.nass.usda.gov/api/api_GET/"
                 params = {
-                    "key": "your_api_key_here",  # Public queries work without key
+                    "key": os.getenv("USDA_NASS_API_KEY", ""),
                     "commodity_desc": commodity,
-                    "data_item": f"{commodity}, PRICE RECEIVED",
-                    "geographic_level": "US",
-                    "year__GE": 2023,
-                    "format": "json"
+                    "statisticcat_desc": "PRICE RECEIVED",
+                    "year": str(datetime.now().year - 1),
+                    "format": "JSON"
                 }
                 response = await client.get(url, params=params, timeout=5.0)
                 if response.status_code == 200:
@@ -647,8 +689,6 @@ async def main():
             json.dump(erpc_message, f, indent=2)
 
         logger.info(f"Cycle complete. Animals at risk: {total_animals_at_risk} USD. Moved: {animals_moved}, Remaining: {animals_remaining}")
-
-        await asyncio.sleep(status["next_update_minutes"] * 60)
 
 
 if __name__ == "__main__":
