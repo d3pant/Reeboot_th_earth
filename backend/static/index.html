@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Wildfire Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #eee; }
+
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      background: rgba(15,15,15,0.92); padding: 12px 20px;
+      display: flex; align-items: center; gap: 16px;
+      border-bottom: 1px solid #333;
+    }
+    #header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.05em; }
+    #status { font-size: 13px; color: #aaa; }
+    #count { font-size: 13px; background: #c0392b; padding: 2px 10px; border-radius: 12px; color: #fff; font-weight: 600; }
+    #refresh-btn {
+      margin-left: auto; font-size: 13px; background: #222; border: 1px solid #444;
+      color: #ccc; padding: 5px 14px; border-radius: 6px; cursor: pointer;
+    }
+    #refresh-btn:hover { background: #333; }
+
+    #map { position: fixed; top: 49px; left: 0; right: 0; bottom: 0; }
+
+    #legend {
+      position: fixed; bottom: 24px; right: 16px; z-index: 1000;
+      background: rgba(15,15,15,0.88); border: 1px solid #333;
+      border-radius: 8px; padding: 12px 16px; font-size: 12px;
+    }
+    #legend h4 { margin-bottom: 8px; color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+    .leaflet-popup-content-wrapper { background: #1a1a1a; color: #eee; border: 1px solid #444; }
+    .leaflet-popup-tip { background: #1a1a1a; }
+    .popup-title { font-weight: 600; margin-bottom: 6px; font-size: 13px; }
+    .popup-row { font-size: 12px; color: #bbb; margin-bottom: 3px; }
+    .popup-row span { color: #eee; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🔥 Live Wildfire Map</h1>
+  <div id="count">—</div>
+  <div id="status">Loading...</div>
+  <button id="refresh-btn" onclick="loadFires()">↻ Refresh</button>
+</div>
+
+<div id="map"></div>
+
+<div id="legend">
+  <h4>Fire Intensity (FRP)</h4>
+  <div class="legend-row"><div class="dot" style="background:#ff2200"></div> Extreme (≥100 MW)</div>
+  <div class="legend-row"><div class="dot" style="background:#ff6600"></div> High (50–100 MW)</div>
+  <div class="legend-row"><div class="dot" style="background:#ffaa00"></div> Moderate (10–50 MW)</div>
+  <div class="legend-row"><div class="dot" style="background:#ffdd88"></div> Low (&lt;10 MW)</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const map = L.map("map", { zoomControl: true }).setView([36.5, -119.5], 6);
+
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: '© OpenStreetMap © CARTO',
+    maxZoom: 18,
+  }).addTo(map);
+
+  const COLORS = { extreme: "#ff2200", high: "#ff6600", moderate: "#ffaa00", low: "#ffdd88" };
+  const SIZES  = { extreme: 14, high: 10, moderate: 7, low: 5 };
+
+  let markersLayer = L.layerGroup().addTo(map);
+
+  async function loadFires() {
+    document.getElementById("status").textContent = "Fetching from NASA FIRMS...";
+    try {
+      const res = await fetch("/api/fires");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || res.statusText);
+      }
+      const data = await res.json();
+
+      markersLayer.clearLayers();
+
+      data.features.forEach(f => {
+        const { frp, confidence, detected_at, brightness, intensity } = f.properties;
+        const [lon, lat] = f.geometry.coordinates;
+        const color = COLORS[intensity] || COLORS.low;
+        const size  = SIZES[intensity]  || SIZES.low;
+
+        const marker = L.circleMarker([lat, lon], {
+          radius: size,
+          fillColor: color,
+          color: "#000",
+          weight: 0.5,
+          fillOpacity: 0.85,
+        });
+
+        marker.bindPopup(`
+          <div class="popup-title">🔥 Active Fire</div>
+          <div class="popup-row">Intensity: <span>${intensity.toUpperCase()}</span></div>
+          <div class="popup-row">FRP: <span>${frp} MW</span></div>
+          <div class="popup-row">Brightness: <span>${brightness} K</span></div>
+          <div class="popup-row">Confidence: <span>${confidence}</span></div>
+          <div class="popup-row">Detected: <span>${detected_at}</span></div>
+          <div class="popup-row">Coords: <span>${lat.toFixed(4)}, ${lon.toFixed(4)}</span></div>
+        `);
+
+        markersLayer.addLayer(marker);
+      });
+
+      const t = new Date(data.fetched_at).toLocaleTimeString();
+      document.getElementById("status").textContent = `Last updated ${t}`;
+      document.getElementById("count").textContent = `${data.count} fires`;
+
+    } catch (e) {
+      document.getElementById("status").textContent = `Error: ${e.message}`;
+    }
+  }
+
+  loadFires();
+  // Auto-refresh every 5 minutes
+  setInterval(loadFires, 5 * 60 * 1000);
+</script>
+</body>
+</html>
