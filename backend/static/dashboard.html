@@ -206,7 +206,7 @@
 
     /* ── Emergency bar ── */
     #emergency-bar {
-      position: sticky; bottom: 0; z-index: 900;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
       background: var(--card); border-top: 1px solid var(--border);
       padding: 12px 24px; display: flex; align-items: center; gap: 16px; height: 70px;
     }
@@ -289,9 +289,6 @@
     .priority-bar { height: 100%; border-radius: 3px; background: var(--fire); }
 
     /* Economics panel */
-    #econ-panel { padding: 24px; }
-    #econ-panel h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-    #econ-panel .sub { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
 
     /* Icon helpers */
     .nav-tab svg { vertical-align: -1px; margin-right: 3px; }
@@ -314,10 +311,10 @@
     <span id="farm-pens-hdr" style="color:var(--text2);">— pens</span>
   </div>
   <nav id="nav">
-    <span class="nav-tab active" id="tab-overview" onclick="switchTab('overview')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Overview</span>
-    <span class="nav-tab" id="tab-livestock" onclick="switchTab('livestock')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Livestock</span>
-    <span class="nav-tab" id="tab-crop" onclick="switchTab('crop')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg> Crops</span>
-    <span class="nav-tab" id="tab-econ" onclick="switchTab('econ')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Economics</span>
+    <span class="nav-tab active" id="tab-overview" onclick="switchTab('overview')">🏠 Overview</span>
+    <span class="nav-tab" id="tab-livestock" onclick="switchTab('livestock')">🐄 Livestock</span>
+    <span class="nav-tab" id="tab-crop" onclick="switchTab('crop')">🌾 Crops</span>
+    <a class="nav-tab" href="/static/financial.html">💰 Financial</a>
   </nav>
   <div id="header-right">
     <a id="map-link" href="/static/setup.html"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Farm Setup</a>
@@ -495,35 +492,6 @@
   </div>
 </div>
 
-<!-- ── Economics Panel ── -->
-<div id="econ-panel" class="tab-panel" style="display:none;">
-  <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Economic Exposure Report</h2>
-  <p class="sub">Financial risk analysis — live USDA crop prices, evacuation costs, and ROI-ranked action queue.</p>
-
-  <!-- Exposure summary cards -->
-  <div id="econ-exposure-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
-    <div class="loading" style="grid-column:1/-1;">Run the forecaster and agents first to see financial data.</div>
-  </div>
-
-  <!-- Action queue -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);margin-bottom:16px;">
-    <div class="bc-title" style="margin-bottom:12px;">
-      <span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-      ROI-Ranked Action Queue
-    </div>
-    <div id="econ-action-queue"><div class="loading">No action data yet.</div></div>
-  </div>
-
-  <!-- Per-crop breakdown -->
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
-    <div class="bc-title" style="margin-bottom:12px;">
-      <span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></span>
-      Per-Crop Financial Breakdown
-    </div>
-    <div id="econ-crop-breakdown"><div class="loading">No breakdown data yet.</div></div>
-    <div id="econ-report-meta" style="margin-top:12px;font-size:11px;color:var(--text3);"></div>
-  </div>
-</div>
 
 <!-- ── Emergency bar ── -->
 <div id="emergency-bar">
@@ -604,7 +572,6 @@ async function loadAll() {
   // Pre-render tab panels so they're ready when clicked
   renderCropPanel();
   renderLivestockPanel();
-  renderEconPanel();
 }
 
 function renderAll() {
@@ -614,7 +581,6 @@ function renderAll() {
   renderAssets();
   renderActions();
   renderRiskBreakdown();
-  renderEconPanel();
 }
 
 // ── Header ──
@@ -1125,8 +1091,7 @@ function switchTab(name) {
   document.getElementById("tab-" + name)?.classList.add("active");
   if (name === "crop")      renderCropPanel();
   if (name === "livestock") renderLivestockPanel();
-  if (name === "econ")      renderEconPanel();
-  if (name === "overview")  setTimeout(() => map.invalidateSize(), 50);
+if (name === "overview")  setTimeout(() => map.invalidateSize(), 50);
 }
 
 // ── Crop Panel ──
@@ -1253,102 +1218,6 @@ function renderCropPanel() {
   }
 }
 
-// ── Economics Panel ──
-function renderEconPanel() {
-  const expEl       = document.getElementById("econ-exposure-grid");
-  const queueEl     = document.getElementById("econ-action-queue");
-  const breakdownEl = document.getElementById("econ-crop-breakdown");
-  const metaEl      = document.getElementById("econ-report-meta");
-  if (!expEl) return;
-
-  if (!econData) {
-    expEl.innerHTML = '<div class="loading" style="grid-column:1/-1;">Run agents first to see financial exposure data.</div>';
-    if (queueEl)     queueEl.innerHTML     = '<div class="loading">No action data yet.</div>';
-    if (breakdownEl) breakdownEl.innerHTML = '<div class="loading">No breakdown data yet.</div>';
-    return;
-  }
-
-  const exp  = econData.financial_exposure || {};
-  const total     = exp.total_exposure_usd || 0;
-  const livestock = exp.livestock_at_risk_usd || 0;
-  const cropLoss  = exp.crop_loss_confirmed_usd || 0;
-  const opp       = exp.opportunity_cost_usd || 0;
-
-  expEl.innerHTML = `
-    <div style="padding:16px;background:var(--card);border:1px solid rgba(192,57,43,0.25);border-radius:10px;box-shadow:var(--shadow);">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">Total Exposure</div>
-      <div style="font-size:26px;font-weight:800;color:var(--fire);">${fmt$(total)}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;">If no action taken</div>
-    </div>
-    <div style="padding:16px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">Livestock at Risk</div>
-      <div style="font-size:22px;font-weight:700;color:#dc2626;">${fmt$(livestock)}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;">Evacuation value</div>
-    </div>
-    <div style="padding:16px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">Crop Loss</div>
-      <div style="font-size:22px;font-weight:700;color:var(--orange);">${fmt$(cropLoss)}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;">Confirmed field loss</div>
-    </div>
-    <div style="padding:16px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);">
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">Opportunity Cost</div>
-      <div style="font-size:22px;font-weight:700;color:var(--amber);">${fmt$(opp)}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;">Revenue foregone</div>
-    </div>`;
-
-  // Action queue
-  const actions = econData.action_queue || [];
-  if (queueEl) {
-    if (actions.length) {
-      const UBG = { IMMEDIATE: "#fde8e8", HIGH: "#fef3e2", SCHEDULED: "#e8f4fd" };
-      const USC = { IMMEDIATE: "#c0392b", HIGH: "#e67e22", SCHEDULED: "#2980b9" };
-      queueEl.innerHTML = actions.map((a, i) => {
-        const saves = a.confidence_adjusted_loss_avoided_usd || 0;
-        const cost  = a.estimated_action_cost_usd || 0;
-        const urg   = a.urgency || "SCHEDULED";
-        return `<div style="display:flex;align-items:flex-start;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
-          <div style="width:26px;height:26px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">${i+1}</div>
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">${a.action_description}</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:${UBG[urg]||"#f5f5f5"};color:${USC[urg]||"#555"};">${urg}</span>
-              ${a.roi > 0 ? `<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#d8f3dc;color:var(--green);">${a.roi}x ROI</span>` : ""}
-              ${saves > 0 ? `<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:#d8f3dc;color:var(--green);">Saves ${fmt$(saves)}</span>` : ""}
-              ${cost > 0  ? `<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:#fde8e8;color:var(--fire);">Cost ${fmt$(cost)}</span>` : ""}
-            </div>
-          </div>
-        </div>`;
-      }).join("");
-    } else {
-      queueEl.innerHTML = '<div class="loading">No action queue data available.</div>';
-    }
-  }
-
-  // Per-crop breakdown
-  const byCrop = exp.breakdown_by_crop || {};
-  const cropEntries = Object.entries(byCrop);
-  if (breakdownEl) {
-    if (cropEntries.length) {
-      const maxVal = Math.max(...cropEntries.map(([,v]) => v), 1);
-      breakdownEl.innerHTML = cropEntries.map(([crop, val]) => `
-        <div style="padding:10px 0;border-bottom:1px solid var(--border);">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:13px;font-weight:600;">${CROP_EMOJI[crop.toLowerCase()]||"🌱"} ${crop.charAt(0).toUpperCase()+crop.slice(1)}</span>
-            <span style="font-size:13px;font-weight:700;color:var(--fire);">${fmt$(val)}</span>
-          </div>
-          <div style="height:5px;background:#f0ede8;border-radius:3px;overflow:hidden;">
-            <div style="height:100%;background:var(--orange);border-radius:3px;width:${(val/maxVal*100).toFixed(1)}%;"></div>
-          </div>
-        </div>`).join("");
-    } else {
-      breakdownEl.innerHTML = '<div class="loading">No per-crop breakdown available.</div>';
-    }
-  }
-
-  if (metaEl && econData.generated_at) {
-    metaEl.textContent = `Report generated: ${new Date(econData.generated_at).toLocaleString()} · Source: ${econData.price_source || "USDA NASS"}`;
-  }
-}
 
 // ── Livestock Panel ──
 function renderLivestockPanel() {
@@ -1472,6 +1341,10 @@ async function refreshAll() {
 
 // Boot
 loadAll().then(() => {
+  // Switch to tab specified in ?tab= query param (used by financial.html nav links)
+  const tabParam = new URLSearchParams(window.location.search).get("tab");
+  if (tabParam) { switchTab(tabParam); history.replaceState({}, "", window.location.pathname); }
+
   // If redirected from setup, auto-run all agents so dashboard reflects new farm data
   if (new URLSearchParams(window.location.search).get("refresh") === "1") {
     history.replaceState({}, "", "/");

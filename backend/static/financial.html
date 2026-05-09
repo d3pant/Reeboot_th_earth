@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reeboot — Financial Overview</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --green:        #2d6a4f;
+      --green2:       #40916c;
+      --green-light:  #d8f3dc;
+      --fire:         #c0392b;
+      --fire2:        #e74c3c;
+      --orange:       #e67e22;
+      --amber:        #f39c12;
+      --blue:         #1d4ed8;
+      --cream:        #f2f4f7;
+      --card:         #ffffff;
+      --border:       #e4e6ea;
+      --text:         #111827;
+      --text2:        #4b5563;
+      --text3:        #9ca3af;
+      --radius:       18px;
+      --shadow:       0 4px 24px rgba(0,0,0,0.08);
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); }
+
+    /* ── Header ── */
+    #header {
+      position: sticky; top: 0; z-index: 1000;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 0 28px; height: 60px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; color: var(--green); text-decoration: none; letter-spacing: -0.01em; }
+    #logo span { font-size: 22px; }
+    #nav { display: flex; gap: 2px; margin-left: 24px; }
+    .nav-tab {
+      padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 500;
+      color: var(--text2); cursor: pointer; text-decoration: none;
+      transition: all 0.15s; border: none; background: none;
+      white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .nav-tab:hover { background: var(--cream); color: var(--text); }
+    .nav-tab.active { background: var(--green); color: #fff; font-weight: 600; }
+    #header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    #threat-badge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 16px; border-radius: 24px; font-size: 13px; font-weight: 700;
+      background: rgba(192,57,43,0.08); color: var(--fire); border: 1.5px solid rgba(192,57,43,0.2);
+    }
+    #farm-info-chip {
+      display: flex; align-items: center; gap: 8px; padding: 4px 12px;
+      background: var(--cream); border: 1px solid var(--border); border-radius: 20px; font-size: 12px;
+    }
+
+    /* ── Page ── */
+    #page { max-width: 1200px; margin: 0 auto; padding: 28px 28px 100px; }
+
+    /* ── Summary row ── */
+    #summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+    .kpi-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow);
+    }
+    .kpi-label { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+    .kpi-val { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+    .kpi-sub { font-size: 12px; color: var(--text2); margin-top: 6px; }
+    .kpi-val.fire  { color: var(--fire); }
+    .kpi-val.amber { color: var(--amber); }
+    .kpi-val.green { color: var(--green2); }
+    .kpi-val.blue  { color: var(--blue); }
+
+    /* ── Chart grid ── */
+    #chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    #chart-grid-bottom { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .chart-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+    }
+    .chart-title {
+      font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px;
+    }
+    .chart-sub { font-size: 11px; color: var(--text3); margin-bottom: 20px; }
+    .chart-wrap { position: relative; }
+
+    /* ── Programs table ── */
+    #programs-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+    }
+    .prog-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+    .prog-table th {
+      font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 0 12px 10px; text-align: left; border-bottom: 1px solid var(--border);
+    }
+    .prog-table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .prog-table tr:last-child td { border-bottom: none; }
+    .prog-table tr:hover td { background: var(--cream); }
+    .prog-name { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .prog-agency { font-size: 11px; color: var(--text3); }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+    }
+    .s-confirmed   { background: var(--green-light); color: var(--green); }
+    .s-likely      { background: #dbeafe; color: var(--blue); }
+    .s-check       { background: #fef9c3; color: #854d0e; }
+    .s-ineligible  { background: #f3f4f6; color: var(--text3); }
+    .deadline-chip {
+      font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 8px;
+      background: #fef9c3; color: #854d0e;
+    }
+    .deadline-chip.urgent { background: rgba(192,57,43,0.1); color: var(--fire); }
+    .deadline-chip.none   { background: var(--cream); color: var(--text3); }
+    .prog-link { font-size: 11px; color: var(--green2); text-decoration: none; }
+    .prog-link:hover { text-decoration: underline; }
+
+    /* ── Infeasible list ── */
+    .infeasible-row {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+    }
+    .infeasible-row:last-child { border-bottom: none; }
+    .blocked-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #fde8e8; color: var(--fire); white-space: nowrap; flex-shrink: 0; }
+    .infeasible-reason { color: var(--text3); margin-top: 3px; }
+
+    /* ── Deadline timeline ── */
+    .deadline-row {
+      display: flex; align-items: center; gap: 14px; padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .deadline-row:last-child { border-bottom: none; }
+    .dl-date { font-size: 13px; font-weight: 700; min-width: 90px; color: var(--text); }
+    .dl-date.urgent { color: var(--fire); }
+    .dl-prog { font-size: 12px; font-weight: 600; color: var(--text); }
+    .dl-agency { font-size: 11px; color: var(--text3); }
+    .dl-days { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: auto; flex-shrink: 0; }
+    .dl-days.urgent { background: rgba(192,57,43,0.1); color: var(--fire); }
+    .dl-days.soon   { background: #fef9c3; color: #854d0e; }
+    .dl-days.ok     { background: var(--green-light); color: var(--green); }
+
+    .loading { color: var(--text3); font-style: italic; font-size: 13px; padding: 20px 0; }
+    .error   { color: var(--fire); font-size: 12px; padding: 8px 0; }
+
+    /* ── Emergency bar ── */
+    #emergency-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
+      background: var(--card); border-top: 1px solid var(--border);
+      padding: 12px 28px; display: flex; align-items: center; gap: 16px; height: 70px;
+    }
+    #emergency-btn {
+      display: flex; align-items: center; gap: 10px; padding: 11px 22px;
+      background: var(--fire); color: #fff; border: none; border-radius: 12px;
+      cursor: pointer; font-size: 14px; font-weight: 700; transition: all 0.15s;
+      box-shadow: 0 4px 14px rgba(192,57,43,0.35);
+    }
+    #emergency-btn:hover { background: #a93226; }
+    .ebar-sep { width: 1px; height: 32px; background: var(--border); }
+    .ebar-action {
+      display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2);
+      cursor: pointer; padding: 8px 14px; border-radius: 10px; transition: all 0.15s;
+      border: none; background: none; font-weight: 500;
+    }
+    .ebar-action:hover { background: var(--cream); color: var(--text); }
+    .ebar-action:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ebar-right { margin-left: auto; font-size: 12px; color: var(--text3); }
+
+    .section-header { display: flex; justify-content: space-between; align-items: baseline; }
+    .section-header h2 { font-size: 15px; font-weight: 700; }
+    .section-header span { font-size: 12px; color: var(--text3); }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div id="header">
+  <a id="logo" href="/"><span>🌱</span> Reeboot</a>
+  <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
+  <div id="farm-info-chip">
+    <span id="farm-name-hdr" style="font-weight:700;color:var(--text);">—</span>
+    <span style="color:var(--text3);">·</span>
+    <span id="farm-acres-hdr" style="color:var(--text2);">—</span>
+  </div>
+  <nav id="nav">
+    <a class="nav-tab" href="/static/dashboard.html">🏠 Overview</a>
+    <a class="nav-tab" href="/static/dashboard.html?tab=livestock">🐄 Livestock</a>
+    <a class="nav-tab" href="/static/dashboard.html?tab=crop">🌾 Crops</a>
+    <span class="nav-tab active">💰 Financial</span>
+  </nav>
+  <div id="header-right">
+    <a style="padding:7px 15px;border-radius:10px;font-size:12px;font-weight:500;color:var(--text3);text-decoration:none;border:1px solid var(--border);" href="/static/setup.html">⚙ Farm Setup</a>
+    <div id="threat-badge"><span>🔥</span> <span id="hdr-threat">—</span></div>
+  </div>
+</div>
+
+<div id="page">
+
+  <!-- KPI row -->
+  <div id="summary-row">
+    <div class="kpi-card">
+      <div class="kpi-label">💸 Total Exposure</div>
+      <div class="kpi-val fire" id="kpi-total">$—</div>
+      <div class="kpi-sub">If no action taken</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🌾 Crop Loss</div>
+      <div class="kpi-val amber" id="kpi-crop">$—</div>
+      <div class="kpi-sub" id="kpi-crop-sub">Confirmed + recoverable</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🐄 Livestock at Risk</div>
+      <div class="kpi-val orange" id="kpi-livestock" style="color:var(--orange);">$—</div>
+      <div class="kpi-sub" id="kpi-livestock-sub">At current threat level</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">📋 Aid Programs</div>
+      <div class="kpi-val green" id="kpi-programs">—</div>
+      <div class="kpi-sub" id="kpi-programs-sub">Confirmed eligible</div>
+    </div>
+  </div>
+
+  <!-- Chart row 1: exposure breakdown + ROI bar -->
+  <div id="chart-grid">
+    <div class="chart-card">
+      <div class="section-header">
+        <div>
+          <div class="chart-title">Financial Exposure Breakdown</div>
+          <div class="chart-sub">What you stand to lose by category</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:240px;">
+        <canvas id="exposure-chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Action ROI</div>
+      <div class="chart-sub">Return on investment for each protective action</div>
+      <div class="chart-wrap" style="height:240px;">
+        <canvas id="roi-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart row 2: action cost vs saved + program summary -->
+  <div id="chart-grid-bottom">
+    <div class="chart-card">
+      <div class="chart-title">Cost to Act vs. Loss Avoided</div>
+      <div class="chart-sub">Per action — grouped bar (USD)</div>
+      <div class="chart-wrap" style="height:220px;">
+        <canvas id="cost-save-chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Aid Program Eligibility</div>
+      <div class="chart-sub">By status</div>
+      <div class="chart-wrap" style="height:220px; display:flex; align-items:center; justify-content:center;">
+        <canvas id="programs-donut"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deadline timeline -->
+  <div class="chart-card" style="margin-bottom:24px;">
+    <div class="chart-title">Program Deadlines</div>
+    <div class="chart-sub">Upcoming filing windows — sorted by urgency</div>
+    <div id="deadline-list"><div class="loading">Loading…</div></div>
+  </div>
+
+  <!-- Programs table -->
+  <div id="programs-card">
+    <div class="section-header">
+      <div>
+        <div class="chart-title">Eligible Aid Programs</div>
+        <div class="chart-sub">USDA, FEMA, SBA and state programs based on your farm profile</div>
+      </div>
+      <span id="prog-count" style="font-size:12px;color:var(--text3);"></span>
+    </div>
+    <div id="programs-table-wrap"><div class="loading">Loading…</div></div>
+  </div>
+
+</div>
+
+<!-- ── Emergency bar ── -->
+<div id="emergency-bar">
+  <button id="emergency-btn">🚨 <div><div>Emergency mode</div><div style="font-size:11px;font-weight:400;opacity:0.85;">Get help now</div></div></button>
+  <div class="ebar-sep"></div>
+  <button class="ebar-action" id="run-forecaster-btn" onclick="runForecaster()">⚡ Run Forecaster</button>
+  <button class="ebar-action" id="run-livestock-btn" onclick="runLivestock()">🐄 Run Livestock</button>
+  <button class="ebar-action" id="run-crop-btn" onclick="runCrop()">🌾 Run Crop Agent</button>
+  <div class="ebar-sep"></div>
+  <button class="ebar-action" id="refresh-btn" onclick="refreshAll()">↻ Refresh all agents</button>
+  <div class="ebar-right" id="last-updated">Last updated: —</div>
+</div>
+
+<script>
+const fmt = (n) => n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : n >= 1e3 ? `$${(n/1e3).toFixed(1)}K` : `$${n.toFixed(0)}`;
+const fmtShort = (n) => n >= 1e6 ? `$${(n/1e6).toFixed(1)}M` : `$${(n/1e3).toFixed(0)}K`;
+
+const COLORS = {
+  fire:    '#c0392b',
+  orange:  '#e67e22',
+  amber:   '#f39c12',
+  green:   '#40916c',
+  blue:    '#1d4ed8',
+  purple:  '#7c3aed',
+  gray:    '#9ca3af',
+};
+
+Chart.defaults.font.family = "'SF Pro Display', system-ui, -apple-system, sans-serif";
+Chart.defaults.color = '#4b5563';
+
+let econData = null, policyData = null;
+
+async function loadAll() {
+  try {
+    const [eRes, pRes, sRes, profRes] = await Promise.all([
+      fetch('/api/econ'),
+      fetch('/api/policy'),
+      fetch('/api/status'),
+      fetch('/api/farm-profile'),
+    ]);
+
+    if (eRes.ok)    econData   = await eRes.json();
+    if (pRes.ok)    policyData = await pRes.json();
+    if (sRes.ok)    { const s = await sRes.json(); document.getElementById('hdr-threat').textContent = (s.threat_level || '—') + ' Threat'; }
+    if (profRes.ok) {
+      const p = await profRes.json();
+      document.getElementById('farm-name-hdr').textContent = p.farm_name || '—';
+      document.getElementById('farm-acres-hdr').textContent = (p.total_acres || '—') + ' ac';
+    }
+
+    if (econData)   renderEcon();
+    if (policyData) renderPolicy();
+
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderEcon() {
+  const exp = econData.financial_exposure;
+  const actions = econData.action_queue || [];
+  const infeasible = econData.infeasible_actions || [];
+
+  // KPIs
+  document.getElementById('kpi-total').textContent     = fmt(exp.total_exposure_usd);
+  document.getElementById('kpi-crop').textContent      = fmt(exp.crop_loss_total_usd);
+  document.getElementById('kpi-livestock').textContent = fmt(exp.livestock_at_risk_usd);
+
+  // Exposure donut
+  const expLabels = ['Crop Loss (Confirmed)', 'Crop (Recoverable)', 'Livestock at Risk', 'Opportunity Cost'];
+  const expVals   = [exp.crop_loss_confirmed_usd, exp.crop_loss_recoverable_usd, exp.livestock_at_risk_usd, exp.opportunity_cost_usd];
+  new Chart(document.getElementById('exposure-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: expLabels,
+      datasets: [{
+        data: expVals,
+        backgroundColor: [COLORS.fire, COLORS.orange, COLORS.amber, COLORS.gray],
+        borderWidth: 2, borderColor: '#fff',
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 12, padding: 14, font: { size: 12 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)}` } },
+      }
+    }
+  });
+
+  // ROI horizontal bar — feasible actions with real ROI
+  const roiActions = actions.filter(a => a.roi > 0).sort((a,b) => b.roi - a.roi);
+  const roiLabels  = roiActions.map(a => a.action_id.replace(/_/g,' '));
+  const roiVals    = roiActions.map(a => a.roi);
+  const roiColors  = roiActions.map(a =>
+    a.urgency === 'IMMEDIATE' ? COLORS.fire :
+    a.urgency === 'HIGH'      ? COLORS.orange : COLORS.green
+  );
+  new Chart(document.getElementById('roi-chart'), {
+    type: 'bar',
+    data: {
+      labels: roiLabels,
+      datasets: [{
+        label: 'ROI (×)',
+        data: roiVals,
+        backgroundColor: roiColors,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw.toFixed(1)}× return` } },
+      },
+      scales: {
+        x: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } }, title: { display: true, text: 'ROI (×)', font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      }
+    }
+  });
+
+  // Cost vs saved grouped bar
+  const allActions = [...actions, ...infeasible].filter(a => a.estimated_action_cost_usd > 0 || a.confidence_adjusted_loss_avoided_usd > 0);
+  const csvLabels  = allActions.map(a => a.action_id.replace(/_/g,' '));
+  const costs      = allActions.map(a => a.estimated_action_cost_usd || 0);
+  const saved      = allActions.map(a => a.confidence_adjusted_loss_avoided_usd || 0);
+  new Chart(document.getElementById('cost-save-chart'), {
+    type: 'bar',
+    data: {
+      labels: csvLabels,
+      datasets: [
+        { label: 'Cost to Act ($)', data: costs, backgroundColor: COLORS.orange, borderRadius: 4, borderSkipped: false },
+        { label: 'Loss Avoided ($)', data: saved, backgroundColor: COLORS.green,  borderRadius: 4, borderSkipped: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtShort(ctx.raw)}` } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 30 } },
+        y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 }, callback: v => fmtShort(v) } },
+      }
+    }
+  });
+}
+
+function renderPolicy() {
+  const summary  = policyData.summary;
+  const programs = policyData.eligible_programs || [];
+  const today    = new Date();
+
+  // KPI
+  document.getElementById('kpi-programs').textContent     = summary.confirmed;
+  document.getElementById('kpi-programs-sub').textContent = `of ${summary.total_programs_evaluated} evaluated`;
+
+  // Programs donut
+  new Chart(document.getElementById('programs-donut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Confirmed', 'Likely', 'Check Required', 'Ineligible'],
+      datasets: [{
+        data: [summary.confirmed, summary.likely, summary.check_required, summary.ineligible],
+        backgroundColor: [COLORS.green, COLORS.blue, COLORS.amber, COLORS.gray],
+        borderWidth: 2, borderColor: '#fff', hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 11 } } },
+      }
+    }
+  });
+
+  // Deadline timeline — only programs with a real ISO date deadline
+  const dated = programs
+    .filter(p => p.deadline && /\d{4}-\d{2}-\d{2}/.test(p.deadline))
+    .map(p => ({ ...p, _date: new Date(p.deadline) }))
+    .sort((a,b) => a._date - b._date);
+
+  const dlEl = document.getElementById('deadline-list');
+  if (dated.length === 0) {
+    dlEl.innerHTML = '<p class="loading">No hard-date deadlines found — check FSA office for rolling programs.</p>';
+  } else {
+    dlEl.innerHTML = dated.map(p => {
+      const days = Math.ceil((p._date - today) / 864e5);
+      const cls  = days <= 30 ? 'urgent' : days <= 90 ? 'soon' : 'ok';
+      const label = days <= 0 ? 'PASSED' : days === 1 ? '1 day left' : `${days} days left`;
+      const dateStr = p._date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return `
+        <div class="deadline-row">
+          <div class="dl-date ${cls}">${dateStr}</div>
+          <div>
+            <div class="dl-prog">${p.name}</div>
+            <div class="dl-agency">${p.agency}${p.notes ? ' · ' + p.notes : ''}</div>
+          </div>
+          <span class="dl-days ${cls}">${label}</span>
+        </div>`;
+    }).join('');
+  }
+
+  // Programs table — confirmed + likely only (skip grants.gov noise)
+  const shown = programs.filter(p =>
+    ['confirmed','likely'].includes(p.eligibility_status) ||
+    (p.eligibility_status === 'check_required' && !p.program_id.startsWith('GRANTSGOV'))
+  );
+  document.getElementById('prog-count').textContent = `${shown.length} programs shown`;
+  const sClass = { confirmed: 's-confirmed', likely: 's-likely', check_required: 's-check', ineligible: 's-ineligible' };
+  const sLabel = { confirmed: '✓ Confirmed', likely: '~ Likely', check_required: '? Check', ineligible: '✗ Ineligible' };
+
+  document.getElementById('programs-table-wrap').innerHTML = `
+    <table class="prog-table">
+      <thead>
+        <tr>
+          <th>Program</th>
+          <th>Status</th>
+          <th>Deadline</th>
+          <th>Est. Value</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${shown.map(p => {
+          const dl = p.deadline && /\d{4}-\d{2}-\d{2}/.test(p.deadline)
+            ? (() => { const d = new Date(p.deadline); const days = Math.ceil((d-today)/864e5); return `<span class="deadline-chip ${days<=30?'urgent':''}">${d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>`; })()
+            : `<span class="deadline-chip none">${p.deadline || 'Contact office'}</span>`;
+          return `
+            <tr>
+              <td><div class="prog-name">${p.name}</div><div class="prog-agency">${p.agency}</div></td>
+              <td><span class="status-pill ${sClass[p.eligibility_status]}">${sLabel[p.eligibility_status]}</span></td>
+              <td>${dl}</td>
+              <td style="font-size:12px;color:var(--text2);max-width:160px;">${p.estimated_value || '—'}</td>
+              <td>${p.link ? `<a href="${p.link}" target="_blank" class="prog-link">Apply ↗</a>` : ''}</td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function runForecaster() {
+  const btn = document.getElementById('run-forecaster-btn');
+  btn.disabled = true; btn.textContent = '⏳ Running...';
+  try {
+    const res = await fetch('/api/run-forecaster', { method: 'POST' });
+    if (!res.ok) { alert('Forecaster error: ' + (await res.json()).detail); return; }
+    await loadAll();
+  } catch(e) { alert('Forecaster: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '⚡ Run Forecaster'; }
+}
+
+async function runLivestock() {
+  const btn = document.getElementById('run-livestock-btn');
+  btn.disabled = true; btn.textContent = '⏳ Running...';
+  try {
+    const res = await fetch('/api/livestock/run', { method: 'POST' });
+    if (!res.ok) { alert('Livestock error: ' + (await res.json()).detail); return; }
+    await loadAll();
+  } catch(e) { alert('Livestock: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🐄 Run Livestock'; }
+}
+
+async function runCrop() {
+  const btn = document.getElementById('run-crop-btn');
+  btn.disabled = true; btn.textContent = '⏳ Running...';
+  try {
+    const res = await fetch('/api/crop/run', { method: 'POST' });
+    if (!res.ok) { alert('Crop error: ' + (await res.json()).detail); return; }
+    await loadAll();
+  } catch(e) { alert('Crop: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🌾 Run Crop Agent'; }
+}
+
+async function refreshAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true; btn.textContent = '⏳ Refreshing...';
+  try {
+    await runForecaster();
+    await runLivestock();
+    await runCrop();
+    document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+  } finally { btn.disabled = false; btn.textContent = '↻ Refresh all agents'; }
+}
+
+loadAll().then(() => {
+  document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+});
+</script>
+</body>
+</html>

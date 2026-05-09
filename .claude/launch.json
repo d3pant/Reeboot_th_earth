@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "reeboot",
+      "runtimeExecutable": "/opt/anaconda3/bin/uvicorn",
+      "runtimeArgs": ["backend.main:app", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

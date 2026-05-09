@@ -407,6 +407,15 @@ def get_econ_report():
         return JSONResponse(json.load(f))
 
 
+@app.get("/api/policy")
+def get_policy_report():
+    policy_path = FORECASTER_DIR / "output" / "policy_report.json"
+    if not policy_path.exists():
+        raise HTTPException(status_code=404, detail="No policy report yet — run policy agent first")
+    with open(policy_path) as f:
+        return JSONResponse(json.load(f))
+
+
 @app.get("/api/farm-profile")
 def get_farm_profile():
     profile_path = LIVESTOCK_DIR_CFG / "farm_profile.json"
