@@ -4,9 +4,7 @@
   "location": {
     "lat": 33.2232,
     "lon": -117.1611,
-    "region": "southern_california",
-    "state": "CA",
-    "county": "San Diego"
+    "region": "southern_california"
   },
   "farmer_risk_tolerance": "moderate",
   "custom_thresholds": {
