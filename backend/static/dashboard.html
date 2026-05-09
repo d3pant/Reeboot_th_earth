@@ -1324,7 +1324,21 @@ async function refreshAll() {
 }
 
 // Boot
-loadAll();
+loadAll().then(() => {
+  // If redirected from setup, auto-run all agents so dashboard reflects new farm data
+  if (new URLSearchParams(window.location.search).get("refresh") === "1") {
+    history.replaceState({}, "", "/");
+    const banner = document.createElement("div");
+    banner.id = "refresh-banner";
+    banner.style.cssText = "position:fixed;top:56px;left:0;right:0;z-index:2000;background:var(--green);color:#fff;text-align:center;padding:10px 16px;font-size:13px;font-weight:600;";
+    banner.textContent = "New farm data saved — running all agents to update your dashboard...";
+    document.body.appendChild(banner);
+    refreshAll().then(() => {
+      banner.textContent = "✅ Dashboard updated with your new farm data";
+      setTimeout(() => banner.remove(), 3000);
+    });
+  }
+});
 setInterval(() => fetch("/api/fires").then(r=>r.ok?r.json():null).then(d=>{if(d){allFiresData=d;fireLayer.clearLayers();renderMap();}}), 5*60*1000);
 </script>
 </body>
