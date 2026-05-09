@@ -387,6 +387,20 @@ function step4Html() {
 
 function goBack() { state.step = Math.max(1, state.step - 1); render(); }
 
+function setAgentStatus(agent, status) {
+  const icon = document.getElementById("icon-" + agent);
+  const row  = document.getElementById("prog-" + agent);
+  if (!icon || !row) return;
+  const map = {
+    running: { t: "⏳", c: "#aaa" },
+    done:    { t: "✓",  c: "#00cc55" },
+    error:   { t: "✗",  c: "#e74c3c" },
+  };
+  const s = map[status] || { t: "○", c: "#555" };
+  icon.textContent = s.t;
+  row.style.color = s.c;
+}
+
 async function submitSetup() {
   const btn = document.getElementById("submit-btn");
   btn.disabled = true; btn.textContent = "Saving...";
@@ -413,16 +427,53 @@ async function submitSetup() {
       throw new Error(err.detail || res.statusText);
     }
 
-    // Show success then redirect
-    document.getElementById("card").innerHTML = `
-      <div class="success-icon">✅</div>
-      <h2 style="text-align:center">Farm configured!</h2>
-      <p class="sub" style="text-align:center;margin-bottom:0">
-        Your farm profile has been saved.<br>
-        Hit the button below to open the live wildfire map.
-      </p>
-      <button class="launch-btn" onclick="window.location='/?refresh=1'">🔥 Open Wildfire Map</button>`;
+    // Show agent-run progress UI
     document.querySelector(".steps").style.display = "none";
+    document.getElementById("card").innerHTML = `
+      <div style="text-align:center;margin-bottom:16px;font-size:36px;" id="agent-spinner">⏳</div>
+      <h2 style="text-align:center;margin-bottom:6px;" id="agent-status">Running agents…</h2>
+      <p class="sub" style="text-align:center;margin-bottom:24px;" id="agent-sub">
+        Fetching fire data and analysing your farm. Takes ~30 seconds.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+        <div id="prog-forecaster" style="display:flex;align-items:center;gap:12px;font-size:13px;color:#555;padding:10px 14px;background:#161616;border-radius:8px;border:1px solid rgba(255,255,255,0.06);">
+          <span id="icon-forecaster" style="font-size:16px;width:20px;text-align:center;">○</span>
+          <div><div style="font-weight:600;color:#ccc;">Forecaster</div><div style="font-size:11px;color:#555;margin-top:2px;">Fire risk · weather · spread model</div></div>
+        </div>
+        <div id="prog-crop" style="display:flex;align-items:center;gap:12px;font-size:13px;color:#555;padding:10px 14px;background:#161616;border-radius:8px;border:1px solid rgba(255,255,255,0.06);">
+          <span id="icon-crop" style="font-size:16px;width:20px;text-align:center;">○</span>
+          <div><div style="font-weight:600;color:#ccc;">Crop Agent</div><div style="font-size:11px;color:#555;margin-top:2px;">Field decisions · economic impact</div></div>
+        </div>
+        <div id="prog-livestock" style="display:flex;align-items:center;gap:12px;font-size:13px;color:#555;padding:10px 14px;background:#161616;border-radius:8px;border:1px solid rgba(255,255,255,0.06);">
+          <span id="icon-livestock" style="font-size:16px;width:20px;text-align:center;">○</span>
+          <div><div style="font-weight:600;color:#ccc;">Livestock Agent</div><div style="font-size:11px;color:#555;margin-top:2px;">Evacuation priority · transport plan</div></div>
+        </div>
+      </div>
+      <div id="agent-launch-area"></div>`;
+
+    // 1. Run forecaster first
+    setAgentStatus("forecaster", "running");
+    try {
+      const fRes = await fetch(`/api/run-forecaster?lat=${payload.lat}&lon=${payload.lon}`, { method: "POST" });
+      setAgentStatus("forecaster", fRes.ok ? "done" : "error");
+    } catch { setAgentStatus("forecaster", "error"); }
+
+    // 2. Run crop + livestock in parallel
+    setAgentStatus("crop", "running");
+    setAgentStatus("livestock", "running");
+    const [cResult, lResult] = await Promise.allSettled([
+      fetch("/api/crop/run", { method: "POST" }),
+      fetch("/api/livestock/run", { method: "POST" }),
+    ]);
+    setAgentStatus("crop",      cResult.status === "fulfilled" && cResult.value?.ok ? "done" : "error");
+    setAgentStatus("livestock", lResult.status === "fulfilled" && lResult.value?.ok ? "done" : "error");
+
+    // Done
+    document.getElementById("agent-spinner").textContent = "✅";
+    document.getElementById("agent-status").textContent  = "Farm ready!";
+    document.getElementById("agent-sub").innerHTML = "All agents have run. Your dashboard is live.";
+    document.getElementById("agent-launch-area").innerHTML =
+      `<button class="launch-btn" onclick="window.location='/?refresh=1'">Open Dashboard →</button>`;
 
   } catch (e) {
     btn.disabled = false;

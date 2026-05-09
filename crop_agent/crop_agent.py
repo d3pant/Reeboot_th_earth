@@ -21,6 +21,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from groq import Groq
 
+load_dotenv(Path(__file__).parent / ".env")
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 from usda_prices import fetch_live_prices
@@ -52,7 +53,7 @@ Use ONLY the actual values provided. Never invent values. Pre-calculate all arit
 CRITICAL: Output decisions ONLY for field_ids listed in FARM FIELDS. Do not add, invent, or assume any additional fields.
 
 OUTPUT: Return a single valid JSON object with exactly these four keys:
-  "field_decisions", "fire_reduction", "economic_impact", "hydration_strategy"
+  "task4", "task1", "task2", "task3"
 No markdown. No explanation text. Only the JSON object.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -88,7 +89,7 @@ For each field:
 
   Check farm_resources to verify equipment feasibility before assigning TRANSPLANT.
 
-Output schema for field_decisions (array of objects):
+Output schema for task4 (array of objects):
   { "field_id", "crop_category", "maturity_pct", "fire_arrival_hours", "decision", "reason", "enters_task1" }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -121,7 +122,7 @@ For each such field compute a UNIQUE priority score:
     - time_window: must complete before fire_arrival_hours (from Task 4)
   If not transplantable, describe mechanical clearing (disc plow, rototiller) or firebreak creation instead.
 
-Output schema for fire_reduction (array of objects):
+Output schema for task1 (array of objects):
   { "field_id", "flammability", "fuel_load", "wind_factor", "priority_score", "rank",
     "action", "uprooting_strategy", "feasible_with_farm_resources" }
 
@@ -135,7 +136,7 @@ Fields with HARVEST NOW or TRANSPLANT are saved — do not count as losses.
   confidence_adjusted_loss_usd = estimated_loss_usd × threat_level_confidence
   economic_impact_score        = min(100, round(confidence_adjusted_loss_usd / 30000))
 
-Output schema for economic_impact (object):
+Output schema for task2 (object):
   {
     "generated_at": "<ISO timestamp>",
     "threat_level": "<from wildfire JSON>",
@@ -181,7 +182,7 @@ Farmer-executable only — no aerial services, no government resources.
 
     If soil_wetness or et_mm_per_day is null (API unavailable), proceed without adjustment and note "soil/ET data unavailable".
 
-Output schema for hydration_strategy (array of objects):
+Output schema for task3 (array of objects):
   { "field_id", "intensity_score", "hours_to_arrival", "soil_wetness", "et_mm_per_day",
     "technique", "urgency", "reason" }
 """
@@ -232,12 +233,12 @@ def parse_llm_json(text: str) -> dict | None:
 
 def save_outputs(parsed: dict, raw_text: str, timestamp: str) -> None:
     """Save full agent JSON output and the ERPC economic slice."""
-    out_file = f"crop_agent_output_{timestamp}.json"
+    out_file = f"output_{timestamp}.json"
     with open(out_file, "w") as f:
         json.dump(parsed, f, indent=2)
     print(f"\nFull output saved  -> {out_file}")
 
-    economic = parsed.get("economic_impact")
+    economic = parsed.get("task2")
     if economic:
         erpc_payload = {"economic_report": economic}
         with open("output_to_erpc.json", "w") as f:
@@ -245,9 +246,9 @@ def save_outputs(parsed: dict, raw_text: str, timestamp: str) -> None:
         print(f"ERPC output saved  -> output_to_erpc.json")
     else:
         print("WARNING: task2 missing from LLM output — output_to_erpc.json not updated.")
-        fallback = f"crop_agent_raw_{timestamp}.txt"
+        fallback = f"output_{timestamp}_raw.json"
         with open(fallback, "w") as f:
-            f.write(raw_text)
+            json.dump({"raw_llm_response": raw_text}, f, indent=2)
         print(f"Raw LLM text saved -> {fallback}")
 
 
@@ -361,9 +362,9 @@ def run_crop_agent(wildfire_status: dict, farm_fields: dict) -> None:
     if parsed:
         save_outputs(parsed, raw, ts)
     else:
-        fallback = f"crop_agent_raw_{ts}.txt"
+        fallback = f"output_{ts}_raw.json"
         with open(fallback, "w") as f:
-            f.write(raw)
+            json.dump({"raw_llm_response": raw}, f, indent=2)
         print(f"Raw output saved   -> {fallback}")
 
 

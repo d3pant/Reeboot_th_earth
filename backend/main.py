@@ -658,6 +658,20 @@ async def run_livestock_agent():
 # Crop endpoints
 # ---------------------------------------------------------------------------
 
+def _normalize_crop_output(data: dict) -> dict:
+    """Map task1/2/3/4 keys to descriptive names the UI expects."""
+    key_map = {
+        "task4": "field_decisions",
+        "task1": "fire_reduction",
+        "task2": "economic_impact",
+        "task3": "hydration_strategy",
+    }
+    for old, new in key_map.items():
+        if old in data and new not in data:
+            data[new] = data.pop(old)
+    return data
+
+
 def _filter_crop_output_to_farm(data: dict) -> dict:
     """Remove hallucinated fields not in current farm_fields.json."""
     fields_path = CROP_DIR_CFG / "farm_fields.json"
@@ -680,12 +694,16 @@ def _filter_crop_output_to_farm(data: dict) -> dict:
 @app.get("/api/crop/status")
 def get_crop_status():
     """Return the latest crop agent output."""
-    outputs = sorted(CROP_DIR.glob("crop_agent_output_*.json"),
-                     key=lambda p: p.stat().st_mtime, reverse=True)
+    outputs = sorted(
+        list(CROP_DIR.glob("output_*.json")) + list(CROP_DIR.glob("crop_agent_output_*.json")),
+        key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    outputs = [p for p in outputs if "raw" not in p.name and "erpc" not in p.name]
     if not outputs:
         raise HTTPException(status_code=404, detail="No crop agent output — run crop agent first")
     with open(outputs[0]) as f:
         data = json.load(f)
+    data = _normalize_crop_output(data)
     erpc = CROP_DIR / "output_to_erpc.json"
     if erpc.exists():
         with open(erpc) as f:
@@ -714,11 +732,15 @@ async def run_crop_agent():
             timeout=180,
             env=env,
         )
-        outputs = sorted(CROP_DIR.glob("crop_agent_output_*.json"),
-                         key=lambda p: p.stat().st_mtime, reverse=True)
+        outputs = sorted(
+            list(CROP_DIR.glob("output_*.json")) + list(CROP_DIR.glob("crop_agent_output_*.json")),
+            key=lambda p: p.stat().st_mtime, reverse=True
+        )
+        outputs = [p for p in outputs if "raw" not in p.name and "erpc" not in p.name]
         if outputs:
             with open(outputs[0]) as f:
                 data = json.load(f)
+            data = _normalize_crop_output(data)
             erpc = CROP_DIR / "output_to_erpc.json"
             if erpc.exists():
                 with open(erpc) as f:
