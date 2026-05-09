@@ -1,6 +1,6 @@
 # Reeboot the Earth — Wildfire Agricultural Advisory System
 
-An AI-powered wildfire monitoring and agricultural advisory system built for **California farmers**. Targets Southern California agricultural operations — San Diego, Riverside, San Bernardino, and surrounding counties. Detects fire threats in real time and activates downstream agents (Crop, Livestock, ERPC) when risk thresholds are crossed.
+An AI-powered wildfire monitoring and agricultural advisory system for farms anywhere in the United States. The farmer pins their location during onboarding — all agents use that pin as the source of truth. Detects fire threats in real time and activates downstream agents (Crop, Livestock, ERPC) when risk thresholds are crossed.
 
 ---
 
@@ -88,7 +88,7 @@ Threat levels used system-wide: `GREEN → WATCH → WARNING → CRITICAL → EM
 
 `forecaster/forecaster.py`
 
-**Stage 1 (passive):** Checks FWI, nearest fire distance, NDVI anomaly on a schedule. No downstream agents active.
+**Stage 1 (passive):** Checks nearest fire distance on a schedule. FWI and NDVI are recorded as context but do not affect the threat level. No downstream agents active.
 
 **Gate condition:** Threat crosses WARNING or above → activates Stage 2.
 
@@ -96,17 +96,18 @@ Threat levels used system-wide: `GREEN → WATCH → WARNING → CRITICAL → EM
 
 Update intervals by threat level: GREEN=720min, WATCH=120min, WARNING=30min, CRITICAL=15min, EMERGENCY=5min.
 
-**Threat level signal logic (`_fwi_threat`):**
+**Threat level — distance only (`_fire_distance_threat`):**
 
-| FWI range | FWI-only signal |
-|-----------|----------------|
-| < 6 | GREEN |
-| 6–8 | GREEN |
-| 9–11 | WATCH |
-| 12–19 | WARNING |
-| ≥ 20 | CRITICAL |
+| Fire distance | Threat level |
+|---------------|-------------|
+| No fire detected | GREEN |
+| > 200 km | GREEN |
+| 100–200 km | WATCH |
+| 50–100 km | WARNING |
+| ≤ 50 km | CRITICAL |
+| ≤ 75 km (hard floor) | CRITICAL |
 
-FWI 12–19 alone does **not** trigger CRITICAL — it produces WARNING. CRITICAL from FWI alone requires FWI ≥ 20. Hard floors in `evaluate_gate_condition()` override upward: fire ≤ 75 km always floors at CRITICAL; FWI ≥ 12 floors at WARNING unless fire is also ≤ 300 km (in which case CRITICAL). This prevents a distant wildfire (> 500 km) from triggering CRITICAL solely due to moderate FWI.
+FWI and NDVI are displayed on the dashboard as weather context but never escalate the threat level. This prevents false alarms from high fire-weather conditions when no fire is actually nearby.
 
 ---
 
@@ -158,6 +159,8 @@ Feasibility gates (hard — action dropped if failed): `feasible_with_farm_resou
 | Livestock head count | Live | head | From `Livestock/erpc_message.json` `total_animals_at_risk` |
 | Transplant seedling value | $800 | $/acre | Nursery price index |
 | Opportunity cost horizon | 1 | season | Agronomist input |
+
+When the crop agent hasn't run yet (threat level GREEN, or Groq unavailable), the econ agent builds a minimal fallback from `crop_agent/farm_fields.json` using the farmer's actual field IDs and crop types — no hardcoded mock fields. Stale crop outputs are filtered at the API level to strip any field_ids not in the current `farm_fields.json`.
 
 ---
 
@@ -238,11 +241,11 @@ The header shows the farm name chip (name · acres · pen count) pulled live fro
 ### Setup — `/static/setup.html`
 
 Three-step onboarding wizard:
-1. Farm name, interactive Leaflet map pin (click to place), total acres
+1. Farm name, interactive Leaflet map pin (**required** — click the map to place it; the pin coordinates are the farm's canonical location used by all agents), total acres
 2. Pen inventory — species, head count, age class, health status, notes per pen
 3. Field inventory — crop type, acres, planting date per field
 
-Posts to `POST /api/setup` which writes `farm_config.json`, `farm_profile.json`, `farm_fields.json` and touches `.farm_setup_done`.
+Posts to `POST /api/setup` which writes `farm_config.json`, `farm_profile.json`, `farm_fields.json` and touches `.farm_setup_done`. All agents read the farm lat/lon from `farm_config.json` at runtime — no hardcoded coordinates anywhere in the codebase.
 
 ---
 
@@ -269,16 +272,15 @@ Split-screen hero: Leaflet ESRI satellite map (left) + threat stats panel (right
 - **Your Farm** — livestock pen status from Livestock Agent (per-pen evacuation decision, transport needed, OSRM-routed evac sites)
 - **What's at Risk** — financial exposure summary linking to Financial tab
 
-**Threat level logic** (Forecaster):
-| Condition | Level |
-|-----------|-------|
-| FWI ≥ 6 | GREEN |
-| FWI ≥ 9 or fire ≤ farmer fire threshold | WATCH |
-| FWI ≥ 12 or fire ≤ farmer fire threshold + NDVI trigger | WARNING |
-| FWI ≥ 20, or fire ≤ 75 km hard floor, or (FWI ≥ 12 + fire ≤ 300 km) | CRITICAL |
-| Combined multi-signal convergence above hard floors | EMERGENCY |
+**Threat level logic** (distance-only — Forecaster):
+| Fire distance | Level |
+|---------------|-------|
+| No fire / > 200 km | GREEN |
+| 100–200 km | WATCH |
+| 50–100 km | WARNING |
+| ≤ 50 km or ≤ 75 km hard floor | CRITICAL |
 
-FWI 12–20 without a nearby fire produces WARNING, not CRITICAL. Hard floor at 75 km fire distance always triggers at least CRITICAL regardless of FWI.
+FWI and NDVI are shown as weather context on the dashboard but do not affect the threat level. GREEN state shows a clean "All Clear — No Action Needed" UI across all tabs; agents stay dormant until WARNING or above.
 
 ---
 
@@ -401,7 +403,7 @@ report_subprocess(lang="en")             ← combined briefing PDF
 returns {forecaster, crop, livestock, econ, insurance, report, data_sources}
 ```
 
-Total wall time ~60-180s depending on Groq latency and OSRM routing. Each subprocess is independent and graceful on failure — if Groq rate-limits, crop returns `{"error": …}`, econ falls back to mock crop data, the rest of the pipeline keeps going.
+Total wall time ~60-180s depending on Groq latency and OSRM routing. Each subprocess is independent and graceful on failure — if Groq rate-limits, crop returns `{"error": …}`, econ builds a minimal fallback from `farm_fields.json` (no hardcoded mock data), the rest of the pipeline keeps going.
 
 **Crop output filename quirk:** the crop agent writes `crop_agent/output_<timestamp>.json` (not `crop_agent_output_*.json`). The econ agent's loader globs both patterns; the on-disk path is what's actually used.
 
