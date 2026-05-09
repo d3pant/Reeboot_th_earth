@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -75,6 +76,42 @@ HARDCODED_LOSS_SUMMARY = {
 }
 
 # ---------------------------------------------------------------------------
+# Path constants for Tavily enrichment
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).parent.parent.parent
+LIVESTOCK_ERPC_MSG = REPO_ROOT / "Livestock" / "erpc_message.json"
+CROP_AGENT_DIR = REPO_ROOT / "crop_agent"
+
+# Program query templates for Tavily search
+_PROGRAM_QUERY_TEMPLATES = {
+    "ELRP_2025": "ELRP {year} Emergency Livestock Relief Program wildfire eligibility requirements",
+    "ELAP":      "ELAP {year} Emergency Assistance Livestock wildfire {state} eligibility deadline",
+    "LFP":       "LFP {year} Livestock Forage Disaster Program wildfire eligibility payment rates",
+    "LIP":       "LIP {year} Livestock Indemnity Program wildfire {state} acceptance rate",
+    "NAP":       "NAP {year} Noninsured Crop Disaster Assistance wildfire eligibility California",
+    "ECP":       "ECP {year} Emergency Conservation Program wildfire eligibility cost-share",
+    "FSA_LOAN":  "FSA Emergency Farm Loan {year} wildfire disaster eligibility requirements",
+    "EQIP_FIRE": "EQIP {year} wildfire conservation practice eligibility {state}",
+    "EWP":       "NRCS EWP Emergency Watershed Protection {year} wildfire eligibility",
+    "FEMA_IA":   "FEMA Individual Assistance {year} wildfire California eligibility",
+    "FEMA_HMGP": "FEMA HMGP {year} wildfire hazard mitigation grant eligibility",
+    "SBA_EIDL":  "SBA EIDL {year} wildfire disaster loan agricultural eligibility",
+    "CDFA_ERL":  "CDFA Emergency Relief Program {year} California wildfire farm eligibility",
+}
+
+_PROGRAM_LOSS_THRESHOLDS = {
+    "ELRP_2025": ("livestock_value_at_risk_usd", 1000),
+    "ELAP":      ("livestock_value_at_risk_usd", 500),
+    "LFP":       ("livestock_value_at_risk_usd", 1000),
+    "LIP":       ("livestock_potential_loss_usd", 1),
+    "NAP":       ("crop_loss_usd", 5000),
+    "ECP":       ("crop_loss_usd", 1000),
+    "FSA_LOAN":  ("crop_loss_usd", 10000),
+    "SBA_EIDL":  ("crop_loss_usd", 5000),
+}
+
+# ---------------------------------------------------------------------------
 # Output schema
 # ---------------------------------------------------------------------------
 
@@ -94,6 +131,8 @@ class EligibleProgram:
     notes: Optional[str]
     requires_disaster_declaration: bool
     declaration_confirmed: Optional[bool]
+    acceptance_chance: Optional[int] = None
+    web_sources: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -133,6 +172,128 @@ def _check_fema_declaration(state: str, county: str) -> Optional[bool]:
     except Exception as exc:
         logger.warning("FEMA declaration API failed: %s — treating as unknown", exc)
         return None
+
+
+# ---------------------------------------------------------------------------
+# Loss summary from JSONs (Tavily enrichment)
+# ---------------------------------------------------------------------------
+
+def _derive_loss_from_jsons() -> dict:
+    """Read crop + livestock JSONs. Returns loss_summary with _numeric passthrough."""
+    loss = dict(HARDCODED_LOSS_SUMMARY)
+    numeric = {
+        "crop_loss_usd": 0.0,
+        "crop_confidence_adjusted_loss_usd": 0.0,
+        "livestock_value_at_risk_usd": 0.0,
+        "livestock_total_animals": 0,
+        "livestock_potential_loss_usd": 0.0,
+        "transport_costs_usd": 0.0,
+    }
+
+    # Livestock JSON
+    try:
+        with open(LIVESTOCK_ERPC_MSG) as f:
+            lv = json.load(f)
+        opt = lv.get("cost_optimization", {})
+        numeric["livestock_value_at_risk_usd"] = lv.get("animal_valuation_at_risk", 0)
+        numeric["livestock_total_animals"] = opt.get("total_animals_at_risk", 0)
+        numeric["livestock_potential_loss_usd"] = opt.get("potential_loss_usd", 0)
+        numeric["transport_costs_usd"] = lv.get("transport_costs_usd", 0)
+        loss["livestock_loss"] = numeric["livestock_value_at_risk_usd"] > 0
+        loss["livestock_deaths"] = numeric["livestock_potential_loss_usd"] > 0
+        logger.info("Derived livestock loss: at_risk=$%s", numeric["livestock_value_at_risk_usd"])
+    except Exception as exc:
+        logger.warning("Could not read erpc_message.json: %s", exc)
+
+    # Crop JSON (latest file)
+    try:
+        outputs = sorted(CROP_AGENT_DIR.glob("crop_agent_output_*.json"))
+        if outputs:
+            with open(outputs[-1]) as f:
+                crop = json.load(f)
+            ei = crop.get("economic_impact", {})
+            numeric["crop_loss_usd"] = ei.get("total_estimated_loss_usd", 0)
+            numeric["crop_confidence_adjusted_loss_usd"] = ei.get("total_confidence_adjusted_loss_usd", 0)
+            loss["crop_loss"] = numeric["crop_loss_usd"] > 0
+            field_decisions = crop.get("field_decisions", [])
+            abandoned = any(d.get("decision") == "ABANDON" for d in field_decisions)
+            loss["infrastructure_damage"] = abandoned or HARDCODED_LOSS_SUMMARY["infrastructure_damage"]
+            logger.info("Derived crop loss: total=$%s", numeric["crop_loss_usd"])
+    except Exception as exc:
+        logger.warning("Could not read crop_agent_output: %s", exc)
+
+    loss["economic_injury"] = numeric["crop_loss_usd"] > 0 or numeric["livestock_value_at_risk_usd"] > 0
+    loss["_numeric"] = numeric
+    return loss
+
+
+# ---------------------------------------------------------------------------
+# Scoring helpers for Tavily enrichment
+# ---------------------------------------------------------------------------
+
+def _score_loss_match(program_id: str, numeric: dict) -> int:
+    """Return 0-30 pts based on loss amounts vs. program thresholds."""
+    entry = _PROGRAM_LOSS_THRESHOLDS.get(program_id)
+    if not entry:
+        return 15
+    field, threshold = entry
+    amount = numeric.get(field, 0)
+    if amount <= 0:
+        return 0
+    if amount >= threshold * 10:
+        return 30
+    if amount >= threshold:
+        return 20
+    return 5
+
+
+def _score_web_signals(snippets: str, program_id: str) -> int:
+    """Scan snippets for acceptance rates/approval signals. Return 0-20 pts."""
+    pct_pattern = re.compile(r'(\d{1,3})\s*%\s*(?:approval|acceptance|funded|approved)', re.I)
+    near_pattern = re.compile(r'(?:approval|acceptance)\s+rate[^.]{0,50}?(\d{1,3})\s*%', re.I)
+    matches = pct_pattern.findall(snippets) + near_pattern.findall(snippets)
+    if matches:
+        try:
+            rate = max(int(m) for m in matches)
+            return min(20, int(rate * 0.2))
+        except ValueError:
+            pass
+    positive = sum(1 for kw in ["approved", "eligible", "qualify", "available", "open"]
+                   if kw in snippets)
+    negative = sum(1 for kw in ["closed", "expired", "ineligible", "no longer", "ended"]
+                   if kw in snippets)
+    net = positive - negative
+    if net >= 3:
+        return 15
+    if net >= 1:
+        return 10
+    if net <= -1:
+        return 2
+    return 8
+
+
+def _score_profile_match(program: EligibleProgram, numeric: dict) -> int:
+    """Return 0 or 10 pts based on farm profile match."""
+    if program.category == "livestock":
+        return 10 if numeric.get("livestock_value_at_risk_usd", 0) > 0 else 0
+    if program.category == "crop":
+        return 10 if numeric.get("crop_loss_usd", 0) > 0 else 0
+    return 10 if program.category in ("conservation", "loan", "mitigation", "state") else 5
+
+
+def _maybe_update_deadline_from_web(program: EligibleProgram, snippets: str) -> None:
+    """Opportunistically update vague deadlines from Tavily text."""
+    if program.deadline and re.match(r'\d{4}-\d{2}-\d{2}', str(program.deadline)):
+        return
+    date_pattern = re.compile(
+        r'(?:deadline|apply by|due by|by)\s*:?\s*'
+        r'((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+20\d\d)',
+        re.I
+    )
+    match = date_pattern.search(snippets)
+    if match:
+        program.deadline = f"Web-sourced: {match.group(1).strip()}"
+        logger.info("Updated deadline for %s: %s", program.program_id, program.deadline)
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +342,80 @@ def _fetch_grants_gov(keywords: list[str]) -> list[EligibleProgram]:
             logger.warning("Grants.gov query failed for '%s': %s", keyword, exc)
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Tavily search enrichment
+# ---------------------------------------------------------------------------
+
+def _enrich_with_tavily(programs: list[EligibleProgram], farm_context: dict) -> list[EligibleProgram]:
+    """Enrich each program with acceptance_chance and web_sources via Tavily."""
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        logger.warning("TAVILY_API_KEY not set — skipping Tavily enrichment")
+        return programs
+
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=api_key)
+    except ImportError:
+        logger.warning("tavily-python not installed — skipping Tavily enrichment")
+        return programs
+
+    state = farm_context.get("state", "CA")
+    year = datetime.now().year
+    loss = farm_context.get("loss", {})
+    numeric = loss.pop("_numeric", {})
+
+    for program in programs:
+        # Ineligible: score 0, no API call
+        if program.eligibility_status == "ineligible":
+            program.acceptance_chance = 0
+            continue
+
+        # Build targeted query
+        template = _PROGRAM_QUERY_TEMPLATES.get(program.program_id)
+        if template:
+            query = template.format(year=year, state=state)
+        else:
+            query = f"{program.name} {year} wildfire eligibility {state}"
+
+        # Call Tavily
+        try:
+            response = client.search(
+                query=query,
+                search_depth="basic",
+                max_results=5,
+                include_answer=True,
+                include_raw_content=False,
+            )
+            results = response.get("results", [])
+            answer = response.get("answer", "") or ""
+            sources = [r["url"] for r in results if r.get("url")]
+            snippets = " ".join(
+                r.get("content", "") for r in results
+            ).lower() + answer.lower()
+
+            program.web_sources = sources[:5]
+
+        except Exception as exc:
+            logger.warning("Tavily search failed for %s: %s", program.program_id, exc)
+            continue
+
+        # Score components
+        status_score = {"confirmed": 40, "likely": 30, "check_required": 15}.get(
+            program.eligibility_status, 0
+        )
+        loss_score = _score_loss_match(program.program_id, numeric)
+        web_score = _score_web_signals(snippets, program.program_id)
+        profile_score = _score_profile_match(program, numeric)
+
+        program.acceptance_chance = min(100, status_score + loss_score + web_score + profile_score)
+
+        # Opportunistically update deadline
+        _maybe_update_deadline_from_web(program, snippets)
+
+    return programs
 
 
 # ---------------------------------------------------------------------------
@@ -776,7 +1011,10 @@ class PolicyAgent:
 
     def run(self, loss_summary: Optional[dict] = None) -> dict:
         """Run the full policy eligibility pipeline. Returns the report dict."""
-        loss = loss_summary if loss_summary is not None else _load_loss_summary()
+        if loss_summary is not None:
+            loss = loss_summary
+        else:
+            loss = _derive_loss_from_jsons()
 
         state = self.farm_config["location"]["state"]
         county = self.farm_config["location"]["county"]
@@ -799,10 +1037,26 @@ class PolicyAgent:
         grants_gov = _fetch_grants_gov(["wildfire agriculture", "wildfire livestock"])
         self.programs.extend(grants_gov)
 
-        self.programs.sort(key=lambda p: _STATUS_ORDER.get(p.eligibility_status, 99))
+        # Tavily enrichment with acceptance scoring
+        farm_context = {
+            "state": state,
+            "county": county,
+            "loss": loss,
+        }
+        self.programs = _enrich_with_tavily(self.programs, farm_context)
+
+        # Sort by eligibility status, then by acceptance chance descending
+        self.programs.sort(
+            key=lambda p: (
+                _STATUS_ORDER.get(p.eligibility_status, 99),
+                -(p.acceptance_chance or 0),
+            )
+        )
 
         eligible = [p for p in self.programs if p.eligibility_status != "ineligible"]
         ineligible = [p for p in self.programs if p.eligibility_status == "ineligible"]
+
+        tavily_enriched = sum(1 for p in self.programs if p.acceptance_chance is not None)
 
         self.report = {
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -811,6 +1065,16 @@ class PolicyAgent:
             "county": county,
             "disaster_declaration_confirmed": self.declaration,
             "event_date": self.event_date.isoformat() if self.event_date else None,
+            "tavily_enrichment": {
+                "enabled": True,
+                "programs_scored": tavily_enriched,
+                "programs_skipped": len(self.programs) - tavily_enriched,
+            },
+            "data_sources": {
+                "loss_summary": "live_jsons",
+                "crop_json": max((CROP_AGENT_DIR.glob("crop_agent_output_*.json")), default=None).__str__() if list(CROP_AGENT_DIR.glob("crop_agent_output_*.json")) else None,
+                "livestock_json": str(LIVESTOCK_ERPC_MSG) if LIVESTOCK_ERPC_MSG.exists() else None,
+            },
             "summary": {
                 "total_programs_evaluated": len(self.programs),
                 "confirmed": sum(1 for p in self.programs if p.eligibility_status == "confirmed"),
@@ -864,7 +1128,7 @@ def main() -> None:
     agent = PolicyAgent(farm_config_path=farm_config_path, status_path=args.status)
 
     if args.dry_run:
-        logger.info("Dry run — skipping FEMA and Grants.gov API calls")
+        logger.info("Dry run — skipping FEMA and Grants.gov API calls, using hardcoded loss")
         agent.declaration = None
         agent.event_date = _load_event_date(Path(args.status))
         deadlines_cache = _load_deadlines_cache()
@@ -875,7 +1139,12 @@ def main() -> None:
             deadlines_cache=deadlines_cache,
             loss=HARDCODED_LOSS_SUMMARY,
         )
-        agent.programs.sort(key=lambda p: _STATUS_ORDER.get(p.eligibility_status, 99))
+        agent.programs.sort(
+            key=lambda p: (
+                _STATUS_ORDER.get(p.eligibility_status, 99),
+                -(p.acceptance_chance or 0),
+            )
+        )
         eligible = [p for p in agent.programs if p.eligibility_status != "ineligible"]
         ineligible = [p for p in agent.programs if p.eligibility_status == "ineligible"]
         agent.report = {
