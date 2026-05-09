@@ -1,0 +1,45 @@
+{
+  "farm_id": "farm_sdge_001",
+  "farm_name": "San Diego County Test Farm",
+  "location": {
+    "lat": 33.2232,
+    "lon": -117.1611,
+    "region": "southern_california"
+  },
+  "farmer_risk_tolerance": "moderate",
+  "custom_thresholds": {
+    "fire_distance_km": 100,
+    "fwi_trigger": 9,
+    "vegetation_stress_sigma": -1.5
+  },
+  "hard_safety_floor": {
+    "fire_distance_km": 75,
+    "fwi_trigger": 12,
+    "spread_rate_km_per_day": 5,
+    "multi_signal_convergence": true
+  },
+  "affected_zones": [
+    {
+      "zone_id": "Z1",
+      "name": "North Fields",
+      "polygon": {
+        "type": "Polygon",
+        "coordinates": [[[-117.17, 33.23], [-117.16, 33.23], [-117.16, 33.22], [-117.17, 33.22], [-117.17, 33.23]]]
+      },
+      "crops": ["avocado", "citrus"],
+      "animals": 250,
+      "harvest_readiness": 0.65
+    },
+    {
+      "zone_id": "Z2",
+      "name": "South Pasture",
+      "polygon": {
+        "type": "Polygon",
+        "coordinates": [[[-117.17, 33.22], [-117.16, 33.22], [-117.16, 33.21], [-117.17, 33.21], [-117.17, 33.22]]]
+      },
+      "crops": ["alfalfa"],
+      "animals": 500,
+      "harvest_readiness": 0.40
+    }
+  ]
+}
