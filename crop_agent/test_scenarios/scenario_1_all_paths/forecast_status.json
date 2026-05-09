@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-05-08T10:00:00Z",
+  "stage": 1,
+  "threat_level": "CRITICAL",
+  "threat_level_confidence": 0.85,
+  "fwi_index": 10.0,
+  "fwi_threshold_farmer": 9,
+  "fwi_threshold_floor": 12,
+  "nearest_fire": {
+    "name": "Scenario 1 Test Fire",
+    "distance_km": 40.0,
+    "location": { "lat": 34.45, "lon": -118.55 },
+    "detected_at": "2026-05-08T06:00:00Z",
+    "current_size_acres": 8000,
+    "spread_rate_km_per_day": 80.0,
+    "direction_degrees": 180
+  },
+  "nearest_fire_distance_threshold_farmer": 100,
+  "nearest_fire_distance_threshold_floor": 75,
+  "vegetation_ndvi_anomaly": -1.8,
+  "vegetation_threshold_farmer": -1.5,
+  "vegetation_threshold_floor": -2.0,
+  "wind_speed_kmh": 30,
+  "wind_direction_degrees": 180,
+  "temperature_c": 35,
+  "humidity_percent": 18,
+  "gate_condition_met": true,
+  "gate_condition_reason": "Test scenario: moderate fire, plenty of time to harvest and transplant",
+  "multi_signal_convergence": true,
+  "next_update_minutes": 15,
+  "stage_transition_triggered": true
+}

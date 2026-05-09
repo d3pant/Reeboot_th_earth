@@ -1,0 +1,46 @@
+{
+  "farm_id": "farm_test_001",
+  "farm_name": "All-Paths Test Farm",
+  "fields": [
+    {
+      "_comment": "HARVEST NOW (annual, fully mature → field clears, no Task 1)",
+      "field_id": "F1",
+      "crop_category": "wheat",
+      "location": { "lat": 34.10, "lon": -118.30 },
+      "size_acres": 20,
+      "planting_date": "2025-10-01"
+    },
+    {
+      "_comment": "HARVEST NOW (perennial, fruit harvested but tree stays → enters Task 1)",
+      "field_id": "F2",
+      "crop_category": "avocado",
+      "location": { "lat": 34.09, "lon": -118.28 },
+      "size_acres": 15,
+      "planting_date": "2019-04-01"
+    },
+    {
+      "_comment": "PARTIAL HARVEST (40-69% mature → salvage + enters Task 1)",
+      "field_id": "F3",
+      "crop_category": "tomatoes",
+      "location": { "lat": 34.11, "lon": -118.32 },
+      "size_acres": 10,
+      "planting_date": "2026-02-01"
+    },
+    {
+      "_comment": "TRANSPLANT (young strawberries < 40% mature, transplantable_young=true, farm has equipment)",
+      "field_id": "F4",
+      "crop_category": "strawberries",
+      "location": { "lat": 34.08, "lon": -118.27 },
+      "size_acres": 8,
+      "planting_date": "2026-04-15"
+    },
+    {
+      "_comment": "ABANDON (almonds immature, transplantable_mature=false, not young enough)",
+      "field_id": "F5",
+      "crop_category": "almonds",
+      "location": { "lat": 34.12, "lon": -118.33 },
+      "size_acres": 25,
+      "planting_date": "2024-03-01"
+    }
+  ]
+}

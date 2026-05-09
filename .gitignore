@@ -9,7 +9,10 @@ __pycache__/
 .venv/
 venv/
 
-# Output files
+# Runtime outputs
+crop_agent/crop_agent_output_*.json
+crop_agent/crop_agent_raw_*.txt
+crop_agent/output_to_erpc.json
 forecaster/output/
 
 # Credentials
