@@ -304,9 +304,8 @@
   </div>
   <nav id="nav">
     <span class="nav-tab active" id="tab-overview" onclick="switchTab('overview')">Overview</span>
-    <a class="nav-tab" href="/static/index.html">🗺 Map</a>
     <span class="nav-tab" id="tab-livestock" onclick="switchTab('livestock')">🐄 Livestock</span>
-    <span class="nav-tab" id="tab-crops" onclick="switchTab('crops')">🌾 Crops</span>
+    <span class="nav-tab" id="tab-crop" onclick="switchTab('crop')">🌾 Crops</span>
   </nav>
   <div id="header-right">
     <a id="map-link" href="/static/setup.html">⚙ Farm Setup</a>
@@ -443,7 +442,7 @@
 </div><!-- /overview-panel -->
 
 <!-- ── Crop Panel ── -->
-<div id="crop-panel" class="tab-panel">
+<div id="crop-panel" class="tab-panel" style="display:none;">
   <h2>🌾 Crop Field Decisions</h2>
   <p class="sub">AI-generated field-by-field recommendations based on fire threat, maturity, and market prices.</p>
   <div id="crop-fields-list">
@@ -452,6 +451,14 @@
   <div id="crop-econ-summary" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
     <div class="bc-title"><span>💰</span> Economic Impact</div>
     <div id="crop-econ-content"></div>
+  </div>
+  <div id="crop-fire-reduction" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
+    <div class="bc-title"><span>🛡️</span> Field Protection Actions</div>
+    <div id="crop-fire-reduction-content"></div>
+  </div>
+  <div id="crop-hydration" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
+    <div class="bc-title"><span>💧</span> Hydration Strategy</div>
+    <div id="crop-hydration-content"></div>
   </div>
 </div>
 
@@ -466,23 +473,31 @@
     <div class="bc-title"><span>🚛</span> Transport Optimization</div>
     <div id="livestock-evac-content"></div>
   </div>
+  <div id="livestock-evac-sequence" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
+    <div class="bc-title"><span>📋</span> Evacuation Order</div>
+    <div id="livestock-evac-sequence-content"></div>
+  </div>
+  <div id="livestock-transport-pool" style="display:none;margin-top:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);">
+    <div class="bc-title"><span>🤝</span> Neighbor Transport Pooling</div>
+    <div id="livestock-transport-pool-content"></div>
+  </div>
 </div>
 
 <!-- ── Emergency bar ── -->
 <div id="emergency-bar">
   <button id="emergency-btn">🚨 <div><div>Emergency mode</div><div style="font-size:11px;font-weight:400;opacity:0.85;">Get help now</div></div></button>
   <div class="ebar-sep"></div>
-  <button class="ebar-action" id="run-forecaster-btn" onclick="runForecaster()">⚡ Run Forecaster</button>
-  <button class="ebar-action" id="run-livestock-btn" onclick="runLivestock()">🐄 Run Livestock</button>
-  <button class="ebar-action" id="run-crop-btn" onclick="runCrop()">🌾 Run Crop Agent</button>
-  <div class="ebar-sep"></div>
+  <button class="ebar-action" id="run-forecaster-btn" onclick="runForecaster()" style="display:none;"></button>
+  <button class="ebar-action" id="run-livestock-btn" onclick="runLivestock()" style="display:none;"></button>
+  <button class="ebar-action" id="run-crop-btn" onclick="runCrop()" style="display:none;"></button>
+  <button class="ebar-action" onclick="refreshAll()">↻ Refresh all agents</button>
   <div class="ebar-right" id="last-updated">Last updated: —</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ── State ──
-let forecastData = null, livestockData = null, cropData = null, farmProfile = null;
+let forecastData = null, livestockData = null, cropData = null, farmProfile = null, econData = null;
 let sliderInterval = null, playing = false;
 let horizonLayers = { "6h": null, "12h": null, "24h": null };
 let timeMarkers = [];
@@ -514,7 +529,7 @@ function windCardinal(deg) {
   return ["N","NE","E","SE","S","SW","W","NW"][Math.round(deg/45)%8];
 }
 function fmt$(n) { return "$" + Math.round(n).toLocaleString(); }
-function fmtH(h) { return h < 1 ? Math.round(h*60)+"m" : h.toFixed(0)+"h"; }
+function fmtH(h) { if (h == null || isNaN(h)) return "—"; return h < 1 ? Math.round(h*60)+"m" : h.toFixed(0)+"h"; }
 
 // ── Risk level mapping ──
 const THREAT_META = {
@@ -527,12 +542,13 @@ const THREAT_META = {
 
 // ── Load all data in parallel ──
 async function loadAll() {
-  const [fRes, lRes, cRes, firesRes, profRes] = await Promise.allSettled([
+  const [fRes, lRes, cRes, firesRes, profRes, econRes] = await Promise.allSettled([
     fetch("/api/status"),
     fetch("/api/livestock/status"),
     fetch("/api/crop/status"),
     fetch("/api/fires"),
     fetch("/api/farm-profile"),
+    fetch("/api/econ"),
   ]);
 
   if (fRes.status === "fulfilled" && fRes.value.ok) forecastData = await fRes.value.json();
@@ -540,8 +556,12 @@ async function loadAll() {
   if (cRes.status === "fulfilled" && cRes.value.ok) cropData = await cRes.value.json();
   if (firesRes.status === "fulfilled" && firesRes.value.ok) allFiresData = await firesRes.value.json();
   if (profRes.status === "fulfilled" && profRes.value.ok) farmProfile = await profRes.value.json();
+  if (econRes.status === "fulfilled" && econRes.value.ok) econData = await econRes.value.json();
 
   renderAll();
+  // Pre-render tab panels so they're ready when clicked
+  renderCropPanel();
+  renderLivestockPanel();
 }
 
 function renderAll() {
@@ -593,17 +613,26 @@ function renderStatCards() {
   document.getElementById("gauge-fill").style.strokeDashoffset = offset;
   document.getElementById("gauge-fill").style.stroke = meta.color;
 
-  // Money at risk — combine livestock + crop
-  const lossLivestock = livestockData?.evacuation_optimization?.summary?.potential_loss_usd || 0;
-  const lossCrop = cropData?.economic_impact?.total_estimated_loss_usd || 0;
-  const totalLoss = lossLivestock + lossCrop;
-  document.getElementById("money-loss").textContent = fmt$(totalLoss || livestockData?.animals_at_risk_usd || 0);
+  // Money at risk — prefer econ agent total, fall back to estimates
+  const totalLoss = econData?.financial_exposure?.total_exposure_usd
+    || (livestockData?.evacuation_optimization?.summary?.potential_loss_usd || 0)
+    + (cropData?.economic_impact?.total_estimated_loss_usd || 0)
+    || livestockData?.animals_at_risk_usd || 0;
+  document.getElementById("money-loss").textContent = fmt$(totalLoss);
 
   // Time to reach
   const ttf = sp.time_to_farm;
   if (ttf) {
-    document.getElementById("time-reach").textContent = fmtH(ttf.hours);
-    document.getElementById("time-reach-sub").textContent = ttf.threatened ? "Fire heading toward farm" : "Not directly threatened";
+    if (ttf.threatened && ttf.hours) {
+      document.getElementById("time-reach").textContent = fmtH(ttf.hours);
+      document.getElementById("time-reach").style.color = "var(--fire)";
+      document.getElementById("time-reach-sub").textContent = "Fire heading toward farm";
+    } else {
+      const wc = ttf.hours_worst_case;
+      document.getElementById("time-reach").textContent = wc ? fmtH(wc) : "—";
+      document.getElementById("time-reach").style.color = "var(--green)";
+      document.getElementById("time-reach-sub").textContent = "Not in direct fire path · worst case";
+    }
   }
 
   // Wind
@@ -639,7 +668,9 @@ function renderMap() {
 
   if (!forecastData) return;
   const f = forecastData;
-  const farmLat = f.farm_lat, farmLon = f.farm_lon;
+  // Always use farm profile centroid — forecaster may have been run at a different pin
+  const farmLat = farmProfile?.centroid?.lat ?? f.farm_lat;
+  const farmLon = farmProfile?.centroid?.lon ?? f.farm_lon;
 
   // Farm circle
   const acres = f.total_acres || 100;
@@ -842,60 +873,86 @@ function renderActions() {
   let actions = [];
   let totalSavings = 0;
 
-  // From livestock
-  if (livestockData?.pens) {
-    livestockData.pens.filter(p => p.decision === "evacuate").forEach(pen => {
-      const evac = pen.assigned_evac_site;
-      const saves = (livestockData.animals_at_risk_usd || 0) / (livestockData.pens.length || 1);
-      const cost = Math.round((pen.route_duration_hours || 1) * 120 * 2);
+  // Prefer econ agent action_queue (ROI-ranked, authoritative)
+  if (econData?.action_queue?.length) {
+    const URGENCY_ICON = { IMMEDIATE: "🚨", HIGH: "⚠️", SCHEDULED: "📋" };
+    const ACTION_ICON = {
+      EVACUATE_LIVESTOCK: "🐄", HARVEST: "🌾", PARTIAL_HARVEST: "🌾",
+      TRANSPLANT: "🌱", FIREBREAK: "🛡️", ABANDON: "🚫",
+    };
+    econData.action_queue.forEach(a => {
+      const saves = a.confidence_adjusted_loss_avoided_usd || 0;
+      const cost = a.estimated_action_cost_usd || 0;
+      const roiStr = a.roi > 0 ? `${a.roi}x ROI` : null;
+      const urgencyIcon = URGENCY_ICON[a.urgency] || "📋";
+      const actionIcon = ACTION_ICON[a.action_id] || (a.action_id?.includes("LIVESTOCK") ? "🐄" : "🌾");
       totalSavings += saves;
+      const tab = a.action_id === "EVACUATE_LIVESTOCK" ? "livestock" : "crop";
       actions.push({
-        icon: SPECIES_EMOJI[pen.species] || "🐾",
-        name: `Move ${pen.species} to ${evac?.name || "safe area"}`,
-        tags: [`Cost ${fmt$(cost)}`, `Saves ${fmt$(saves)}`],
-        tagTypes: ["cost", "save"],
-        chevron: `${pen.route_duration_hours?.toFixed(1)}h route`,
+        icon: urgencyIcon + " " + actionIcon,
+        name: a.action_description,
+        tags: [
+          roiStr,
+          saves > 0 ? `Saves ${fmt$(saves)}` : null,
+          cost > 0 ? `Cost ${fmt$(cost)}` : null,
+          a.urgency,
+        ].filter(Boolean),
+        tagTypes: ["save", "save", "cost", "decision"],
+        tab,
       });
     });
-  }
-
-  // From crop agent
-  if (cropData?.field_decisions) {
-    cropData.field_decisions.forEach(fd => {
-      const dec = fd.decision?.toUpperCase();
-      if (!dec) return;
-      const priceAcre = CROP_PRICE_PER_ACRE[fd.crop_category?.toLowerCase()] || 3000;
-      const fieldVal = priceAcre * 10;
-      const saves = dec === "HARVEST NOW" ? fieldVal * (fd.maturity_pct || 80) / 100 : 0;
-      totalSavings += saves;
-      const iconMap = { "HARVEST NOW": "🌾", "PARTIAL HARVEST": "🌾", "ABANDON": "🚫", "TRANSPLANT": "🌱" };
-      const actionLabel = dec === "HARVEST NOW" ? `Harvest ${fd.crop_category} field ${fd.field_id}` :
-                          dec === "PARTIAL HARVEST" ? `Partial harvest — field ${fd.field_id}` :
-                          dec === "TRANSPLANT" ? `Transplant field ${fd.field_id}` :
-                          `Abandon field ${fd.field_id} (${fd.crop_category})`;
-      actions.push({
-        icon: iconMap[dec] || "🌱",
-        name: actionLabel,
-        tags: [`${fd.maturity_pct?.toFixed(0) || "?"}% mature`, `Fire in ${fmtH(fd.fire_arrival_hours || 0)}`],
-        tagTypes: ["decision", "decision"],
-        chevron: fd.reason?.substring(0, 40) || "",
+  } else {
+    // Fallback: derive from livestock + crop agent data
+    if (livestockData?.pens) {
+      livestockData.pens.filter(p => p.decision === "evacuate").forEach(pen => {
+        const evac = pen.assigned_evac_site;
+        const saves = (livestockData.animals_at_risk_usd || 0) / (livestockData.pens.length || 1);
+        const cost = Math.round((pen.route_duration_hours || 1) * 120 * 2);
+        totalSavings += saves;
+        actions.push({
+          icon: SPECIES_EMOJI[pen.species] || "🐾",
+          name: `Move ${pen.species} to ${evac?.name || "safe area"}`,
+          tags: [`Cost ${fmt$(cost)}`, `Saves ${fmt$(saves)}`],
+          tagTypes: ["cost", "save"],
+          tab: "livestock",
+        });
       });
-    });
+    }
+    if (cropData?.field_decisions) {
+      cropData.field_decisions.forEach(fd => {
+        const dec = fd.decision?.toUpperCase();
+        if (!dec) return;
+        const priceAcre = CROP_PRICE_PER_ACRE[fd.crop_category?.toLowerCase()] || 3000;
+        const saves = dec === "HARVEST NOW" ? priceAcre * 10 * (fd.maturity_pct || 80) / 100 : 0;
+        totalSavings += saves;
+        const iconMap = { "HARVEST NOW": "🌾", "PARTIAL HARVEST": "🌾", "ABANDON": "🚫", "TRANSPLANT": "🌱" };
+        const label = dec === "HARVEST NOW" ? `Harvest ${fd.crop_category} field ${fd.field_id}` :
+                      dec === "PARTIAL HARVEST" ? `Partial harvest — field ${fd.field_id}` :
+                      dec === "TRANSPLANT" ? `Transplant field ${fd.field_id}` :
+                      `Abandon field ${fd.field_id} (${fd.crop_category})`;
+        actions.push({
+          icon: iconMap[dec] || "🌱",
+          name: label,
+          tags: [`${fd.maturity_pct?.toFixed(0) || "?"}% mature`, `Fire in ${fmtH(fd.fire_arrival_hours || 0)}`],
+          tagTypes: ["decision", "decision"],
+          tab: "crop",
+        });
+      });
+    }
   }
 
-  // Generic fire prep if no data
   if (actions.length === 0) {
     el.innerHTML = '<div class="loading">Run forecaster + agents to get recommendations</div>';
     return;
   }
 
   el.innerHTML = actions.slice(0, 4).map(a => `
-    <div class="action-row">
+    <div class="action-row" onclick="switchTab('${a.tab || 'livestock'}')" style="cursor:pointer;">
       <div class="action-icon">${a.icon}</div>
       <div class="action-body">
         <div class="action-name">${a.name}</div>
         <div class="action-tags">
-          ${a.tags.map((t,i) => `<span class="tag tag-${a.tagTypes[i]}">${t}</span>`).join("")}
+          ${a.tags.map((t,i) => `<span class="tag tag-${(a.tagTypes||[])[i]||'decision'}">${t}</span>`).join("")}
         </div>
       </div>
       <div class="action-chevron">›</div>
@@ -914,11 +971,11 @@ function renderRiskBreakdown() {
   const el = document.getElementById("risk-breakdown");
   if (!forecastData) { el.innerHTML = '<div class="loading">Run forecaster first</div>'; return; }
 
-  const animalVal   = livestockData?.animals_at_risk_usd || 0;
-  const cropLoss    = cropData?.economic_impact?.total_estimated_loss_usd || 0;
-  const cropOppLoss = (CROP_PRICE_PER_ACRE.avocado * 20 + CROP_PRICE_PER_ACRE.tomatoes * 10 + CROP_PRICE_PER_ACRE.corn * 10) || 0;
-  const recovCost   = Math.round((animalVal + cropOppLoss) * 0.18);
-  const total       = animalVal + cropOppLoss + recovCost;
+  const exp = econData?.financial_exposure || {};
+  const animalVal   = exp.livestock_at_risk_usd  || livestockData?.animals_at_risk_usd || 0;
+  const cropLoss    = exp.crop_loss_confirmed_usd || 0;
+  const oppLoss     = exp.opportunity_cost_usd    || 0;
+  const total       = exp.total_exposure_usd      || (animalVal + cropLoss + oppLoss);
   const maxVal      = total || 1;
 
   const meta = THREAT_META[forecastData.threat_level] || THREAT_META.GREEN;
@@ -926,23 +983,32 @@ function renderRiskBreakdown() {
 
   el.innerHTML = `
     <div class="risk-row">
-      <div class="risk-row-top"><span class="risk-name">Animal value at risk</span><span class="risk-amt">${fmt$(animalVal)}</span></div>
+      <div class="risk-row-top"><span class="risk-name">Livestock at risk</span><span class="risk-amt">${fmt$(animalVal)}</span></div>
       <div class="risk-bar-bg"><div class="risk-bar fire" style="width:${(animalVal/maxVal*100).toFixed(1)}%"></div></div>
     </div>
     <div class="risk-row">
-      <div class="risk-row-top"><span class="risk-name">Crop opportunity loss</span><span class="risk-amt">${fmt$(cropOppLoss)}</span></div>
-      <div class="risk-bar-bg"><div class="risk-bar orange" style="width:${(cropOppLoss/maxVal*100).toFixed(1)}%"></div></div>
+      <div class="risk-row-top"><span class="risk-name">Crop loss (confirmed)</span><span class="risk-amt">${fmt$(cropLoss)}</span></div>
+      <div class="risk-bar-bg"><div class="risk-bar orange" style="width:${(cropLoss/maxVal*100).toFixed(1)}%"></div></div>
     </div>
     <div class="risk-row">
-      <div class="risk-row-top"><span class="risk-name">Recovery & rebuild cost</span><span class="risk-amt">${fmt$(recovCost)}</span></div>
-      <div class="risk-bar-bg"><div class="risk-bar green" style="width:${(recovCost/maxVal*100).toFixed(1)}%"></div></div>
+      <div class="risk-row-top"><span class="risk-name">Opportunity cost</span><span class="risk-amt">${fmt$(oppLoss)}</span></div>
+      <div class="risk-bar-bg"><div class="risk-bar green" style="width:${(oppLoss/maxVal*100).toFixed(1)}%"></div></div>
     </div>
   `;
 
-  const totEl = document.querySelector(".risk-total");
-  if (!totEl) {
-    el.insertAdjacentHTML("afterend", `<div class="risk-total"><span>Total exposure</span><span style="color:var(--fire);">${fmt$(total)}</span></div>`);
-  }
+  // Per-crop breakdown from econ agent
+  const byCrop = econData?.financial_exposure?.breakdown_by_crop || {};
+  const cropBreakdownHtml = Object.entries(byCrop).length
+    ? Object.entries(byCrop).map(([crop, val]) =>
+        `<div class="risk-row" style="margin-top:6px;">
+          <div class="risk-row-top"><span class="risk-name" style="font-size:11px;color:var(--text3);">${CROP_EMOJI[crop]||"🌱"} ${crop}</span><span class="risk-amt" style="font-size:11px;">${fmt$(val)}</span></div>
+         </div>`
+      ).join("") : "";
+  if (cropBreakdownHtml) el.innerHTML += cropBreakdownHtml;
+
+  // Clear any previously inserted risk-total rows before adding new one
+  el.parentElement.querySelectorAll(".risk-total").forEach(n => n.remove());
+  el.insertAdjacentHTML("afterend", `<div class="risk-total" style="display:flex;justify-content:space-between;padding-top:12px;border-top:2px solid var(--border);font-weight:700;font-size:14px;margin-top:4px;"><span>Total exposure</span><span style="color:var(--fire);">${fmt$(total)}</span></div>`);
 
   const expEl = document.getElementById("risk-expected");
   expEl.style.display = "block";
@@ -957,8 +1023,8 @@ async function runForecaster() {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 120000);
   try {
-    const farmLat = forecastData?.farm_lat || 33.2232;
-    const farmLon = forecastData?.farm_lon || -117.1611;
+    const farmLat = farmProfile?.centroid?.lat ?? forecastData?.farm_lat ?? 33.2232;
+    const farmLon = farmProfile?.centroid?.lon ?? forecastData?.farm_lon ?? -117.1611;
     const res = await fetch(`/api/run-forecaster?lat=${farmLat}&lon=${farmLon}`, { method: "POST", signal: ctrl.signal });
     if (!res.ok) { alert("Forecaster error: " + (await res.json()).detail); return; }
     forecastData = await res.json();
@@ -1003,11 +1069,12 @@ function scrollToBottom() {
 
 // ── Tab switching ──
 function switchTab(name) {
-  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => { p.classList.remove("active"); p.style.display = "none"; });
   document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
-  document.getElementById(name + "-panel").classList.add("active");
+  const panel = document.getElementById(name + "-panel");
+  if (panel) { panel.classList.add("active"); panel.style.display = "block"; }
   document.getElementById("tab-" + name)?.classList.add("active");
-  if (name === "crops") renderCropPanel();
+  if (name === "crop") renderCropPanel();
   if (name === "livestock") renderLivestockPanel();
   if (name === "overview") setTimeout(() => map.invalidateSize(), 50);
 }
@@ -1024,6 +1091,10 @@ function renderCropPanel() {
   const DEC_CLASS = { "HARVEST NOW":"dec-harvest","PARTIAL HARVEST":"dec-partial","ABANDON":"dec-abandon","TRANSPLANT":"dec-transplant" };
   const DEC_ICON  = { "HARVEST NOW":"✅","PARTIAL HARVEST":"🔀","ABANDON":"🚫","TRANSPLANT":"🌱" };
 
+  const destructions = cropData?.economic_impact?.crop_destructions || [];
+  const hydrations   = cropData?.hydration_strategy || [];
+  const fireRed      = cropData?.fire_reduction || [];
+
   el.innerHTML = fields.map(fd => {
     const dec = (fd.decision || "").toUpperCase();
     const cls = DEC_CLASS[dec] || "dec-partial";
@@ -1033,6 +1104,9 @@ function renderCropPanel() {
     const cropEmoji = CROP_EMOJI[fd.crop_category?.toLowerCase()] || "🌱";
     const priceAcre = CROP_PRICE_PER_ACRE[fd.crop_category?.toLowerCase()] || 3000;
     const estVal = fmt$(priceAcre * (fd.size_acres || 10));
+    const dest = destructions.find(d => d.field_id === fd.field_id);
+    const hyd  = hydrations.find(h => h.field_id === fd.field_id);
+    const fr   = fireRed.find(r => r.field_id === fd.field_id);
 
     return `<div class="field-card">
       <div class="field-card-left">
@@ -1048,6 +1122,9 @@ function renderCropPanel() {
           <div class="field-meta-item">Maturity: <span>${matPct.toFixed(0)}%</span></div>
           ${arrivalH != null ? `<div class="field-meta-item">Fire arrives in: <span>${fmtH(arrivalH)}</span></div>` : ""}
           ${fd.size_acres ? `<div class="field-meta-item">Size: <span>${fd.size_acres} ac</span></div>` : ""}
+          ${dest ? `<div class="field-meta-item">Conf. loss: <span style="color:var(--fire);font-weight:600;">${fmt$(dest.confidence_adjusted_loss_usd)}</span></div>` : ""}
+          ${hyd  ? `<div class="field-meta-item">Water: <span style="color:#2980b9;">${hyd.technique} · ${hyd.urgency}</span></div>` : ""}
+          ${fr   ? `<div class="field-meta-item">Fire action: <span style="color:var(--orange);font-weight:600;">${fr.action} (rank #${fr.rank})</span></div>` : ""}
         </div>
         ${fd.reason ? `<div class="field-reason">${fd.reason}</div>` : ""}
       </div>
@@ -1061,21 +1138,68 @@ function renderCropPanel() {
   const econ = cropData?.economic_impact;
   if (econ) {
     document.getElementById("crop-econ-summary").style.display = "block";
-    const saved = econ.total_value_saved_usd ?? econ.value_saved ?? 0;
-    const lost  = econ.total_estimated_loss_usd ?? econ.total_value_lost_usd ?? econ.value_lost ?? 0;
+    const adjLost = econ.total_confidence_adjusted_loss_usd ?? econ.total_estimated_loss_usd ?? 0;
+    const perFieldRows = (econ.crop_destructions || []).map(d =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+        <span style="color:var(--text2);">${CROP_EMOJI[d.crop_category?.toLowerCase()]||"🌱"} ${d.crop_category} · ${d.field_id} · ${d.size_acres} ac</span>
+        <span style="font-weight:600;color:var(--fire);">${fmt$(d.confidence_adjusted_loss_usd)} <span style="font-size:11px;color:var(--text3);">(${fmt$(d.price_per_acre_usd)}/ac · ${d.usda_report_date})</span></span>
+      </div>`
+    ).join("");
     document.getElementById("crop-econ-content").innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">
-        <div style="padding:14px;background:var(--green-light);border-radius:10px;text-align:center;">
-          <div style="font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:4px;">Value Saved</div>
-          <div style="font-size:24px;font-weight:700;color:var(--green);">${fmt$(saved)}</div>
-        </div>
         <div style="padding:14px;background:#fde8e8;border-radius:10px;text-align:center;">
-          <div style="font-size:11px;color:var(--fire);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:4px;">Estimated Loss</div>
-          <div style="font-size:24px;font-weight:700;color:var(--fire);">${fmt$(lost)}</div>
+          <div style="font-size:11px;color:var(--fire);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:4px;">Confidence-Adj Loss</div>
+          <div style="font-size:24px;font-weight:700;color:var(--fire);">${fmt$(adjLost)}</div>
+        </div>
+        <div style="padding:14px;background:var(--cream);border-radius:10px;text-align:center;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:4px;">Gross Estimated Loss</div>
+          <div style="font-size:24px;font-weight:700;color:var(--text);">${fmt$(econ.total_estimated_loss_usd||0)}</div>
         </div>
       </div>
-      <div style="margin-top:12px;font-size:12px;color:var(--text3);">Price source: ${econ.price_source || "USDA NASS"} · Generated: ${econ.generated_at ? new Date(econ.generated_at).toLocaleString() : "—"}</div>
+      ${perFieldRows ? `<div style="margin-top:12px;">${perFieldRows}</div>` : ""}
+      <div style="margin-top:10px;font-size:12px;color:var(--text3);">Price source: ${econ.price_source || "USDA NASS"} · ${econ.generated_at ? new Date(econ.generated_at).toLocaleString() : "—"}</div>
     `;
+  }
+
+  // Fire reduction section
+  const frEl = document.getElementById("crop-fire-reduction");
+  const fireRedData = cropData?.fire_reduction || [];
+  if (fireRedData.length) {
+    frEl.style.display = "block";
+    const ACT_ICON = { CLEAR:"🌾", FIREBREAK:"🛡️", MONITOR:"👁️", IRRIGATE:"💧" };
+    document.getElementById("crop-fire-reduction-content").innerHTML = fireRedData.map(r =>
+      `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:22px;">${ACT_ICON[r.action]||"🛡️"}</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">${r.action} · Field ${r.field_id}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">${r.uprooting_strategy?.method || ""}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Flammability ${r.flammability} · Fuel load ${r.fuel_load} · Wind factor ${r.wind_factor}x · Priority score ${r.priority_score}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:12px;font-weight:700;color:${r.feasible_with_farm_resources?"var(--green)":"var(--fire)"};">${r.feasible_with_farm_resources?"✅ Feasible":"❌ Needs help"}</div>
+          <div style="font-size:11px;color:var(--text3);">Rank #${r.rank}</div>
+        </div>
+      </div>`
+    ).join("");
+  }
+
+  // Hydration section
+  const hydEl = document.getElementById("crop-hydration");
+  const hydData = cropData?.hydration_strategy || [];
+  if (hydData.length) {
+    hydEl.style.display = "block";
+    const URG_COLOR = { IMMEDIATE:"var(--fire)", HIGH:"var(--orange)", SCHEDULED:"var(--amber)", MONITOR:"var(--green2)" };
+    document.getElementById("crop-hydration-content").innerHTML = hydData.map(h =>
+      `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:22px;">💧</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">${h.technique} · Field ${h.field_id}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">${h.reason}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Soil wetness ${(h.soil_wetness*100).toFixed(0)}% · Intensity score ${h.intensity_score?.toFixed(1)}</div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:${URG_COLOR[h.urgency]||"var(--text2)"};">${h.urgency}</div>
+      </div>`
+    ).join("");
   }
 }
 
@@ -1125,24 +1249,78 @@ function renderLivestockPanel() {
     document.getElementById("livestock-evac-summary").style.display = "block";
     const s = opt.summary;
     const tc = opt.transport_capacity;
+    const lossColor = s.potential_loss_usd > 0 ? "var(--fire)" : "var(--green)";
     document.getElementById("livestock-evac-content").innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:4px;">
         <div style="padding:12px;background:var(--cream);border-radius:10px;text-align:center;">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Animals at Risk</div>
-          <div style="font-size:22px;font-weight:700;">${s.total_animals_at_risk}</div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">At Risk</div>
+          <div style="font-size:20px;font-weight:700;">${s.total_animals_at_risk}</div>
         </div>
         <div style="padding:12px;background:var(--green-light);border-radius:10px;text-align:center;">
-          <div style="font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Can Evacuate</div>
-          <div style="font-size:22px;font-weight:700;color:var(--green);">${s.animals_can_evacuate}</div>
+          <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Can Evacuate</div>
+          <div style="font-size:20px;font-weight:700;color:var(--green);">${s.animals_can_evacuate}</div>
         </div>
         <div style="padding:12px;background:var(--green-light);border-radius:10px;text-align:center;">
-          <div style="font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Value Saved</div>
-          <div style="font-size:22px;font-weight:700;color:var(--green);">${fmt$(s.value_can_save_usd)}</div>
+          <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Value Saved</div>
+          <div style="font-size:20px;font-weight:700;color:var(--green);">${fmt$(s.value_can_save_usd)}</div>
+        </div>
+        <div style="padding:12px;background:${s.potential_loss_usd>0?"#fde8e8":"var(--green-light)"};border-radius:10px;text-align:center;">
+          <div style="font-size:10px;color:${lossColor};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Potential Loss</div>
+          <div style="font-size:20px;font-weight:700;color:${lossColor};">${fmt$(s.potential_loss_usd)}</div>
         </div>
       </div>
-      <div style="margin-top:12px;font-size:12px;color:var(--text2);">${tc.vehicles} trailers · ${tc.capacity_per_vehicle} head/vehicle · ${tc.trips_available} trips available · Total capacity: ${tc.total_capacity} head</div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text2);">${tc.vehicles} trailers · ${tc.capacity_per_vehicle} head/vehicle · ${tc.trips_per_trailer || tc.trips_available || "—"} trips/trailer · ${tc.total_capacity} head total capacity</div>
+      ${livestockData.animals_moved_count != null ? `<div style="margin-top:4px;font-size:12px;color:var(--text3);">Phase: <b style="color:var(--text);">${livestockData.phase || "—"}</b> · Moved: ${livestockData.animals_moved_count} · Remaining: ${livestockData.animals_remaining_count}</div>` : ""}
     `;
+
+    // Evacuation sequence
+    const seq = opt.evacuation_sequence || [];
+    if (seq.length) {
+      document.getElementById("livestock-evac-sequence").style.display = "block";
+      document.getElementById("livestock-evac-sequence-content").innerHTML = seq.map(s =>
+        `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${s.sequence}</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;">${SPECIES_EMOJI[s.species]||"🐾"} ${s.species?.charAt(0).toUpperCase()+s.species?.slice(1)} · ${s.pen_id}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px;">${s.reason}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:13px;font-weight:700;color:var(--green);">${fmt$(s.value_saved_usd)}</div>
+            <div style="font-size:11px;color:var(--text3);">${s.animals_saved} saved · ${fmt$(s.value_usd)} total</div>
+            <div style="font-size:11px;font-weight:600;color:var(--green);margin-top:2px;">${s.status}</div>
+          </div>
+        </div>`
+      ).join("");
+    }
   }
+
+  // Transport pooling
+  const pools = livestockData?.transport_pool || [];
+  if (pools.length) {
+    document.getElementById("livestock-transport-pool").style.display = "block";
+    document.getElementById("livestock-transport-pool-content").innerHTML =
+      `<div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Share a transport run with neighboring farms to cut costs and time.</div>` +
+      pools.map(p =>
+        `<div style="padding:12px;background:var(--cream);border-radius:10px;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:4px;">🤝 ${p.farms_involved.join(" + ")}</div>
+          <div style="font-size:12px;color:var(--text2);">${p.shared_route_summary}</div>
+          <div style="display:flex;gap:16px;margin-top:8px;">
+            <div><span style="font-size:11px;color:var(--text3);">Time saved</span><br><span style="font-weight:700;color:var(--green);">${p.time_saved_minutes?.toFixed(0)} min</span></div>
+            <div><span style="font-size:11px;color:var(--text3);">Shared cost</span><br><span style="font-weight:700;">${fmt$(p.estimated_cost_sharing_usd)}</span></div>
+            <div><span style="font-size:11px;color:var(--text3);">Return assist</span><br><span style="font-weight:700;">${p.return_trip_assist ? "Yes" : "No"}</span></div>
+          </div>
+        </div>`
+      ).join("");
+  }
+}
+
+async function refreshAll() {
+  const btn = document.querySelector('.ebar-action[onclick="refreshAll()"]');
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Refreshing..."; }
+  await runForecaster();
+  await runLivestock();
+  await runCrop();
+  if (btn) { btn.disabled = false; btn.textContent = "↻ Refresh all agents"; }
 }
 
 // Boot

@@ -1,57 +1,145 @@
 {
-  "timestamp": "2026-05-09T05:56:20.600989+00:00",
+  "timestamp": "2026-05-09T06:37:16.656629+00:00",
   "threat_level": "CRITICAL",
   "phase": "execute_movement",
   "pens": [
     {
-      "pen_id": "pen_001",
-      "lat": 33.23304,
-      "lon": -117.19784,
-      "species": "cattle",
-      "priority_score": 66.5,
+      "pen_id": "pen_003",
+      "lat": 33.2216,
+      "lon": -117.16154,
+      "species": "horse",
+      "priority_score": 81.2,
       "decision": "evacuate",
       "decision_reason": "Safe evacuation possible within 0.7h",
       "assigned_evac_site": {
         "name": "Del Mar Fairgrounds",
         "lat": 32.9595,
         "lon": -117.2653,
-        "distance_km": 45.7449
+        "distance_km": 39.013400000000004
       },
-      "route_duration_hours": 0.7429722222222221,
+      "route_duration_hours": 0.7465277777777778,
+      "route_source": "osrm",
+      "smoke_penalty_applied": false,
+      "assigned_vehicle": null,
+      "movement_status": "pending"
+    },
+    {
+      "pen_id": "pen_001",
+      "lat": 33.22427,
+      "lon": -117.16154,
+      "species": "cattle",
+      "priority_score": 66.5,
+      "decision": "evacuate",
+      "decision_reason": "Safe evacuation possible within 0.8h",
+      "assigned_evac_site": {
+        "name": "Del Mar Fairgrounds",
+        "lat": 32.9595,
+        "lon": -117.2653,
+        "distance_km": 39.3337
+      },
+      "route_duration_hours": 0.7785277777777777,
+      "route_source": "osrm",
+      "smoke_penalty_applied": false,
+      "assigned_vehicle": null,
+      "movement_status": "pending"
+    },
+    {
+      "pen_id": "pen_002",
+      "lat": 33.22453,
+      "lon": -117.16066,
+      "species": "pig",
+      "priority_score": 37.699,
+      "decision": "evacuate",
+      "decision_reason": "Safe evacuation possible within 0.8h",
+      "assigned_evac_site": {
+        "name": "Del Mar Fairgrounds",
+        "lat": 32.9595,
+        "lon": -117.2653,
+        "distance_km": 39.406099999999995
+      },
+      "route_duration_hours": 0.78575,
       "route_source": "osrm",
       "smoke_penalty_applied": false,
       "assigned_vehicle": null,
       "movement_status": "pending"
     }
   ],
-  "transport_pool": [],
+  "transport_pool": [
+    {
+      "pool_id": "pool_farm_001_farm_sdge_002_Del_Mar_Fairgrounds",
+      "farms_involved": [
+        "farm_001",
+        "farm_sdge_002"
+      ],
+      "shared_route_summary": "farm_001 -> farm_sdge_002 -> Del Mar Fairgrounds",
+      "time_saved_minutes": 95.8,
+      "return_trip_assist": false,
+      "estimated_cost_sharing_usd": 478.92
+    },
+    {
+      "pool_id": "pool_farm_001_farm_sdge_004_Del_Mar_Fairgrounds",
+      "farms_involved": [
+        "farm_001",
+        "farm_sdge_004"
+      ],
+      "shared_route_summary": "farm_001 -> farm_sdge_004 -> Del Mar Fairgrounds",
+      "time_saved_minutes": 96.4,
+      "return_trip_assist": false,
+      "estimated_cost_sharing_usd": 482.17
+    }
+  ],
   "evacuation_optimization": {
     "transport_capacity": {
       "vehicles": 2,
       "capacity_per_vehicle": 100,
-      "total_capacity": 400,
-      "trips_available": 4
+      "trips_per_trailer": 7,
+      "total_capacity": 1400
     },
     "evacuation_sequence": [
       {
         "sequence": 1,
+        "pen_id": "pen_003",
+        "species": "horse",
+        "count": 20,
+        "value_usd": 70000,
+        "animals_saved": 20,
+        "value_saved_usd": 70000,
+        "status": "EVACUATE",
+        "reason": "score 0.97 | $3,500/head | 0.7h route"
+      },
+      {
+        "sequence": 2,
         "pen_id": "pen_001",
+        "species": "cattle",
         "count": 50,
-        "value": 72500,
-        "status": "CAN_EVACUATE",
-        "reason": "Prioritized: $97581/hour value efficiency"
+        "value_usd": 72500,
+        "animals_saved": 50,
+        "value_saved_usd": 72500,
+        "status": "EVACUATE",
+        "reason": "score 0.62 | $1,450/head | 0.8h route"
+      },
+      {
+        "sequence": 3,
+        "pen_id": "pen_002",
+        "species": "pig",
+        "count": 20,
+        "value_usd": 1398.0,
+        "animals_saved": 20,
+        "value_saved_usd": 1398.0,
+        "status": "EVACUATE",
+        "reason": "score 0.38 | $69.9/head | 0.8h route"
       }
     ],
     "summary": {
-      "total_animals_at_risk": 50,
-      "animals_can_evacuate": 50,
-      "value_can_save_usd": 72500,
-      "potential_loss_usd": 0,
+      "total_animals_at_risk": 90,
+      "animals_can_evacuate": 90,
+      "value_can_save_usd": 143898.0,
+      "potential_loss_usd": 0.0,
       "loss_percentage": 0.0
     }
   },
   "blockers": [],
-  "animals_at_risk_usd": 72500,
-  "animals_moved_count": 50,
+  "animals_at_risk_usd": 143898.0,
+  "animals_moved_count": 90,
   "animals_remaining_count": 0
 }

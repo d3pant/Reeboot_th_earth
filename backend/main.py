@@ -398,6 +398,15 @@ def get_status():
     return JSONResponse(data)
 
 
+@app.get("/api/econ")
+def get_econ_report():
+    econ_path = FORECASTER_DIR / "output" / "econ_report.json"
+    if not econ_path.exists():
+        raise HTTPException(status_code=404, detail="No econ report yet — run forecaster first")
+    with open(econ_path) as f:
+        return JSONResponse(json.load(f))
+
+
 @app.get("/api/farm-profile")
 def get_farm_profile():
     profile_path = LIVESTOCK_DIR_CFG / "farm_profile.json"
@@ -557,6 +566,17 @@ async def run_forecaster(
     STATUS_JSON.parent.mkdir(parents=True, exist_ok=True)
     with open(STATUS_JSON, "w") as f:
         json.dump(status, f, indent=2, default=str)
+
+    # Run econ agent in-process after forecaster writes status.json
+    try:
+        import subprocess as _sp
+        _sp.run(
+            ["python3", "-m", "forecaster.agents.econ_agent"],
+            cwd=Path(__file__).parent.parent,
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        pass  # econ agent is best-effort
 
     return JSONResponse(status)
 
