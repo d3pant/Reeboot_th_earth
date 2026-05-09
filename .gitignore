@@ -1,5 +1,6 @@
-# Environment — never commit real credentials
+# Secrets — never commit these
 .env
+*.env
 
 # Python
 __pycache__/
@@ -12,3 +13,7 @@ venv/
 crop_agent/crop_agent_output_*.json
 crop_agent/crop_agent_raw_*.txt
 crop_agent/output_to_erpc.json
+forecaster/output/
+
+# Credentials
+config/credentials.json
