@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Livestock Evacuation</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; overflow: hidden; }
+        .container { display: grid; grid-template-columns: 1fr 350px; height: 100vh; }
+        #map { width: 100%; height: 100%; }
+        .sidebar { background: #1e293b; border-left: 2px solid #3b82f6; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 3px; }
+
+        h1 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .status { background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; padding: 12px; border-radius: 6px; font-size: 12px; }
+        .status strong { color: #fca5a5; }
+
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-box { background: rgba(59, 130, 246, 0.1); padding: 12px; border-radius: 6px; }
+        .stat-value { font-size: 18px; font-weight: 700; color: #60a5fa; }
+        .stat-label { font-size: 10px; color: #94a3b8; margin-top: 4px; text-transform: uppercase; }
+
+        .section-title { font-size: 13px; font-weight: 700; color: #cbd5e1; margin-top: 15px; margin-bottom: 10px; border-bottom: 1px solid rgba(59, 130, 246, 0.3); padding-bottom: 8px; }
+
+        .pen-list { display: flex; flex-direction: column; gap: 10px; }
+        .pen-item { background: rgba(71, 85, 105, 0.3); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; padding: 10px; cursor: pointer; transition: all 0.2s; border-left: 3px solid #cbd5e1; }
+        .pen-item:hover { background: rgba(71, 85, 105, 0.5); border-color: #60a5fa; }
+        .pen-item.active { background: rgba(59, 130, 246, 0.3); border-color: #60a5fa; box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
+
+        .pen-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .pen-id { font-weight: 700; color: #f1f5f9; font-size: 13px; }
+        .pen-priority { background: rgba(59, 130, 246, 0.4); padding: 2px 6px; border-radius: 3px; font-size: 10px; color: #60a5fa; }
+        .pen-species { font-size: 11px; color: #cbd5e1; margin-bottom: 4px; }
+        .pen-value { font-size: 11px; color: #cbd5e1; margin-bottom: 6px; }
+
+        .decision { display: inline-block; padding: 4px 8px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+        .decision.evacuate { background: rgba(34, 197, 94, 0.3); color: #86efac; }
+        .decision.shelter { background: rgba(251, 146, 60, 0.3); color: #fdba74; }
+        .decision.cannot { background: rgba(239, 68, 68, 0.3); color: #fca5a5; }
+
+        .pool-item { background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 6px; padding: 10px; font-size: 11px; }
+        .pool-stat { display: flex; justify-content: space-between; margin: 4px 0; color: #cbd5e1; }
+        .pool-value { color: #c4b5fd; font-weight: 600; }
+
+        .map-box { position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; padding: 12px; color: #e2e8f0; font-size: 11px; max-width: 200px; z-index: 999; }
+        .legend { position: absolute; bottom: 15px; left: 15px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; padding: 12px; color: #e2e8f0; font-size: 10px; z-index: 999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="map">
+            <div class="map-box">
+                <div style="color: #fca5a5; font-weight: 700; margin-bottom: 8px;">🔥 THREAT</div>
+                <div><strong>Palisades Fire</strong><br>75 km away</div>
+            </div>
+            <div class="legend">
+                <div style="font-weight: 700; margin-bottom: 8px;">Legend</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 9px;">
+                    <div>🐄 Cattle</div>
+                    <div>🐴 Horse</div>
+                    <div>🐑 Sheep</div>
+                    <div>🐷 Pig</div>
+                    <div>🐐 Goat</div>
+                    <div>✓ Evac Site</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div>
+                <h1>🚜 Livestock Ops</h1>
+                <div class="status">
+                    <strong>CRITICAL THREAT</strong><br>
+                    11 hours to impact
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-value">$442,000</div>
+                    <div class="stat-label">Total Value</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">497</div>
+                    <div class="stat-label">Animals</div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">📍 Top Routes</div>
+                <div class="pen-list" id="penList"></div>
+            </div>
+
+            <div>
+                <div class="section-title">💡 Cost Optimization</div>
+                <div id="optimizationBox"></div>
+            </div>
+
+            <div>
+                <div class="section-title">🤝 Partnerships</div>
+                <div id="poolList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const map = L.map('map').setView([33.225, -117.165], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM', maxZoom: 19 }).addTo(map);
+
+        const pens = [{"pen_id": "pen_003", "name": "South Pasture - Cattle", "species": "cattle", "count": 120, "lat": 33.22, "lon": -117.165, "priority": 85.7, "decision": "evacuate", "duration_hours": 0.7176111111111111, "distance_km": 38.6486, "evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 38.6486}, "value": 174000, "color": "#DC2626"}, {"pen_id": "pen_002", "name": "North Field - Horses", "species": "horse", "count": 12, "lat": 33.23, "lon": -117.168, "priority": 82.0, "decision": "evacuate", "duration_hours": 1.0038055555555554, "distance_km": 46.557900000000004, "evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 46.557900000000004}, "value": 42000, "color": "#EA580C"}, {"pen_id": "pen_005", "name": "North Field - Mixed", "species": "pig", "count": 35, "lat": 33.234, "lon": -117.169, "priority": 72.5, "decision": "evacuate", "duration_hours": 0.9371944444444444, "distance_km": 45.452400000000004, "evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 45.452400000000004}, "value": 19250, "color": "#9333EA"}, {"pen_id": "pen_001", "name": "North Field - Cattle", "species": "cattle", "count": 85, "lat": 33.23, "lon": -117.17, "priority": 66.5, "decision": "evacuate", "duration_hours": 0.9958055555555556, "distance_km": 46.3573, "evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 46.3573}, "value": 123250, "color": "#DC2626"}, {"pen_id": "pen_004", "name": "South Pasture - Sheep", "species": "sheep", "count": 200, "lat": 33.22, "lon": -117.162, "priority": 64.7, "decision": "evacuate", "duration_hours": 0.7493333333333333, "distance_km": 39.1684, "evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 39.1684}, "value": 70000, "color": "#2563EB"}, {"pen_id": "pen_006", "name": "South Pasture - Goats", "species": "goat", "count": 45, "lat": 33.216, "lon": -117.161, "priority": 62.2, "decision": "evacuate", "duration_hours": 0.7666111111111111, "distance_km": 39.537099999999995, "evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 39.537099999999995}, "value": 13500, "color": "#16A34A"}];
+        const drawnRoutes = {};
+
+        const farmIcon = L.divIcon({
+            html: `<div style="display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; background: linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%); border: 3px solid #b45309; border-radius: 8px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); font-size: 28px;">🏪</div>`,
+            className: '',
+            iconSize: [60, 60],
+            popupAnchor: [0, -30]
+        });
+
+        L.marker([33.225, -117.165], { icon: farmIcon }).addTo(map).bindPopup(`<strong>SDGE Demonstration Farm</strong><br>497 animals`);
+
+        async function drawRoute(pen) {
+            if (!pen.evac_site) return;
+            const { lat, lon } = pen;
+            const { lat: eLat, lon: eLon } = pen.evac_site;
+            try {
+                const response = await fetch(`http://router.project-osrm.org/route/v1/driving/${lon},${lat};${eLon},${eLat}?geometries=geojson`);
+                const data = await response.json();
+                if (data.routes && data.routes[0]) {
+                    const route = data.routes[0];
+                    const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+
+                    const shadowPolyline = L.polyline(coords, { color: '#000000', weight: 10, opacity: 0.2, dashArray: '6, 4', lineCap: 'round' }).addTo(map);
+
+                    const polyline = L.polyline(coords, { color: pen.color, weight: 5, opacity: 0.85, dashArray: '8, 3', lineCap: 'round' }).addTo(map);
+
+                    const distance = (route.distance / 1000).toFixed(1);
+                    const duration = (route.duration / 3600).toFixed(2);
+
+                    polyline.bindPopup(`<div style="font-size: 11px; color: #1e293b;"><strong>${pen.pen_id} — ${pen.name}</strong><br>${pen.count}x ${pen.species} | $${(pen.value).toLocaleString()}<br><strong>${pen.evac_site.name}</strong><br>${distance}km • ${duration}h</div>`, { minWidth: 220 });
+
+                    drawnRoutes[pen.pen_id] = { polyline, shadow: shadowPolyline };
+                }
+            } catch (error) { console.error(error); }
+        }
+
+        pens.forEach(pen => {
+            const penIcon = L.divIcon({
+                html: `<div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: ${pen.color}; border: 2px solid ${pen.decision === 'evacuate' ? '#10b981' : '#ef4444'}; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); font-size: 18px; color: white; font-weight: 700;">${pen.species[0].toUpperCase()}</div>`,
+                className: '',
+                iconSize: [40, 40],
+                popupAnchor: [0, -20]
+            });
+            L.marker([pen.lat, pen.lon], { icon: penIcon }).addTo(map);
+            drawRoute(pen);
+        });
+
+        const sites = {};
+        pens.forEach(pen => {
+            if (pen.evac_site && !sites[pen.evac_site.name]) {
+                sites[pen.evac_site.name] = true;
+                const siteIcon = L.divIcon({
+                    html: `<div style="position: relative;"><div style="position: absolute; width: 100px; height: 100px; background: radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, transparent 70%); border-radius: 50%; top: -40px; left: -40px;"></div><div style="display: flex; align-items: center; justify-content: center; width: 80px; height: 80px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: 4px solid #047857; border-radius: 12px; font-size: 40px; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4); z-index: 10;">✓</div></div>`,
+                    className: '',
+                    iconSize: [80, 80],
+                    popupAnchor: [0, -40]
+                });
+                L.marker([pen.evac_site.lat, pen.evac_site.lon], { icon: siteIcon }).addTo(map);
+            }
+        });
+
+        const fireIcon = L.divIcon({
+            html: `<div style="display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; background: rgba(239, 68, 68, 0.2); border: 2px solid #ef4444; border-radius: 8px; font-size: 24px; animation: pulse 2s infinite;">🔥</div>`,
+            className: '',
+            iconSize: [50, 50],
+            popupAnchor: [0, -25]
+        });
+        L.marker([33.72, -117.66], { icon: fireIcon }).addTo(map);
+
+        const penList = document.getElementById('penList');
+        const speciesEmoji = {'cattle': '🐄', 'horse': '🐴', 'sheep': '🐑', 'pig': '🐷', 'goat': '🐐'};
+
+        pens.slice(0, 4).forEach((pen, idx) => {
+            const penItem = document.createElement('div');
+            penItem.className = 'pen-item';
+            const decisionClass = pen.decision === 'evacuate' ? 'evacuate' : pen.decision === 'shelter_in_place' ? 'shelter' : 'cannot';
+            penItem.innerHTML = `
+                <div class="pen-row">
+                    <span class="pen-id">${pen.pen_id} ${speciesEmoji[pen.species]}</span>
+                    <span class="pen-priority">${pen.priority.toFixed(0)}</span>
+                </div>
+                <div class="pen-species">${pen.count}x • $${(pen.value/1000).toFixed(0)}k</div>
+                <span class="decision ${decisionClass}">${pen.decision === 'evacuate' ? '✓ GO' : '⚠️ HOLD'}</span>
+            `;
+            penItem.addEventListener('click', () => {
+                document.querySelectorAll('.pen-item').forEach(item => item.classList.remove('active'));
+                penItem.classList.add('active');
+                map.setView([pen.lat, pen.lon], 12);
+                Object.values(drawnRoutes).forEach(route => {
+                    route.polyline.setStyle({ opacity: 0.15, weight: 3 });
+                    route.shadow.setStyle({ opacity: 0.05 });
+                });
+                if (drawnRoutes[pen.pen_id]) {
+                    drawnRoutes[pen.pen_id].polyline.setStyle({ opacity: 0.95, weight: 6 });
+                    drawnRoutes[pen.pen_id].shadow.setStyle({ opacity: 0.3 });
+                    drawnRoutes[pen.pen_id].polyline.openPopup();
+                }
+            });
+            penList.appendChild(penItem);
+        });
+
+        // Cost optimization
+        const statusData = {"timestamp": "2026-05-09T02:44:50.331592+00:00", "threat_level": "CRITICAL", "phase": "execute_movement", "pens": [{"pen_id": "pen_003", "priority_score": 85.7, "decision": "evacuate", "decision_reason": "Safe evacuation possible within 0.7h", "assigned_evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 38.6486}, "route_duration_hours": 0.7176111111111111, "route_source": "osrm", "smoke_penalty_applied": false, "assigned_vehicle": null, "movement_status": "pending"}, {"pen_id": "pen_002", "priority_score": 82.0, "decision": "evacuate", "decision_reason": "Safe evacuation possible within 1.0h", "assigned_evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 46.557900000000004}, "route_duration_hours": 1.0038055555555554, "route_source": "osrm", "smoke_penalty_applied": false, "assigned_vehicle": null, "movement_status": "pending"}, {"pen_id": "pen_005", "priority_score": 72.5, "decision": "evacuate", "decision_reason": "Safe evacuation possible within 0.9h", "assigned_evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 45.452400000000004}, "route_duration_hours": 0.9371944444444444, "route_source": "osrm", "smoke_penalty_applied": false, "assigned_vehicle": null, "movement_status": "pending"}, {"pen_id": "pen_001", "priority_score": 66.5, "decision": "evacuate", "decision_reason": "Safe evacuation possible within 1.0h", "assigned_evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 46.3573}, "route_duration_hours": 0.9958055555555556, "route_source": "osrm", "smoke_penalty_applied": false, "assigned_vehicle": null, "movement_status": "pending"}, {"pen_id": "pen_004", "priority_score": 64.7, "decision": "evacuate", "decision_reason": "Safe evacuation possible within 0.7h", "assigned_evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 39.1684}, "route_duration_hours": 0.7493333333333333, "route_source": "osrm", "smoke_penalty_applied": false, "assigned_vehicle": null, "movement_status": "pending"}, {"pen_id": "pen_006", "priority_score": 62.2, "decision": "evacuate", "decision_reason": "Safe evacuation possible within 0.8h", "assigned_evac_site": {"name": "Del Mar Fairgrounds", "lat": 32.9595, "lon": -117.2653, "distance_km": 39.537099999999995}, "route_duration_hours": 0.7666111111111111, "route_source": "osrm", "smoke_penalty_applied": false, "assigned_vehicle": null, "movement_status": "pending"}], "transport_pool": [{"pool_id": "pool_farm_sdge_001_farm_sdge_002_Del_Mar_Fairgrounds", "farms_involved": ["farm_sdge_001", "farm_sdge_002"], "shared_route_summary": "farm_sdge_001 -> farm_sdge_002 -> Del Mar Fairgrounds", "time_saved_minutes": 354.68000000000006, "return_trip_assist": false, "estimated_cost_sharing_usd": 1773.4}, {"pool_id": "pool_farm_sdge_001_farm_sdge_003_Del_Mar_Fairgrounds", "farms_involved": ["farm_sdge_001", "farm_sdge_003"], "shared_route_summary": "farm_sdge_001 -> farm_sdge_003 -> Del Mar Fairgrounds", "time_saved_minutes": 344.355, "return_trip_assist": false, "estimated_cost_sharing_usd": 1721.78}, {"pool_id": "pool_farm_sdge_001_farm_sdge_004_Del_Mar_Fairgrounds", "farms_involved": ["farm_sdge_001", "farm_sdge_004"], "shared_route_summary": "farm_sdge_001 -> farm_sdge_004 -> Del Mar Fairgrounds", "time_saved_minutes": 373.945, "return_trip_assist": true, "estimated_cost_sharing_usd": 1869.72}], "evacuation_optimization": {"transport_capacity": {"vehicles": 3, "capacity_per_vehicle": 150, "total_capacity": 900, "trips_available": 6}, "evacuation_sequence": [{"sequence": 1, "pen_id": "pen_003", "count": 120, "value": 174000, "status": "CAN_EVACUATE", "reason": "Prioritized: $242471/hour value efficiency"}, {"sequence": 2, "pen_id": "pen_001", "count": 85, "value": 123250, "status": "CAN_EVACUATE", "reason": "Prioritized: $123769/hour value efficiency"}, {"sequence": 3, "pen_id": "pen_004", "count": 200, "value": 70000, "status": "CAN_EVACUATE", "reason": "Prioritized: $93416/hour value efficiency"}, {"sequence": 4, "pen_id": "pen_002", "count": 12, "value": 42000, "status": "CAN_EVACUATE", "reason": "Prioritized: $41841/hour value efficiency"}, {"sequence": 5, "pen_id": "pen_005", "count": 35, "value": 19250, "status": "CAN_EVACUATE", "reason": "Prioritized: $20540/hour value efficiency"}, {"sequence": 6, "pen_id": "pen_006", "count": 45, "value": 13500, "status": "CAN_EVACUATE", "reason": "Prioritized: $17610/hour value efficiency"}], "summary": {"total_animals_at_risk": 497, "animals_can_evacuate": 497, "value_can_save_usd": 442000, "potential_loss_usd": 0, "loss_percentage": 0.0}}, "blockers": [], "animals_at_risk_usd": 442000, "animals_moved_count": 497, "animals_remaining_count": 0};
+        const optimization = statusData.evacuation_optimization || {};
+        if (optimization.summary) {
+            const optBox = document.getElementById('optimizationBox');
+            const summary = optimization.summary;
+            optBox.innerHTML = `
+                <div class="pool-item">
+                    <div style="font-weight: 600; color: #86efac; margin-bottom: 6px;">Transport Capacity</div>
+                    <div class="pool-stat">
+                        <span>Can Save:</span>
+                        <span class="pool-value">$${summary.value_can_save_usd.toLocaleString()}</span>
+                    </div>
+                    <div class="pool-stat">
+                        <span>At Risk:</span>
+                        <span class="pool-value" style="color: #fca5a5;">$${summary.potential_loss_usd.toLocaleString()}</span>
+                    </div>
+                    <div class="pool-stat">
+                        <span>Loss Rate:</span>
+                        <span class="pool-value" style="color: #fca5a5;">${summary.loss_percentage}%</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        const poolList = document.getElementById('poolList');
+        const pools = [{"pool_id": "pool_farm_sdge_001_farm_sdge_002_Del_Mar_Fairgrounds", "farms_involved": ["farm_sdge_001", "farm_sdge_002"], "shared_route_summary": "farm_sdge_001 -> farm_sdge_002 -> Del Mar Fairgrounds", "time_saved_minutes": 354.68000000000006, "return_trip_assist": false, "estimated_cost_sharing_usd": 1773.4}, {"pool_id": "pool_farm_sdge_001_farm_sdge_003_Del_Mar_Fairgrounds", "farms_involved": ["farm_sdge_001", "farm_sdge_003"], "shared_route_summary": "farm_sdge_001 -> farm_sdge_003 -> Del Mar Fairgrounds", "time_saved_minutes": 344.355, "return_trip_assist": false, "estimated_cost_sharing_usd": 1721.78}, {"pool_id": "pool_farm_sdge_001_farm_sdge_004_Del_Mar_Fairgrounds", "farms_involved": ["farm_sdge_001", "farm_sdge_004"], "shared_route_summary": "farm_sdge_001 -> farm_sdge_004 -> Del Mar Fairgrounds", "time_saved_minutes": 373.945, "return_trip_assist": true, "estimated_cost_sharing_usd": 1869.72}];
+        pools.slice(0, 2).forEach((pool, idx) => {
+            const poolDiv = document.createElement('div');
+            poolDiv.className = 'pool-item';
+            poolDiv.innerHTML = `
+                <div style="font-weight: 600; color: #c4b5fd; margin-bottom: 6px;">Partnership ${idx + 1}</div>
+                <div class="pool-stat">
+                    <span>Save:</span>
+                    <span class="pool-value">${pool.time_saved_minutes.toFixed(0)}min</span>
+                </div>
+                <div class="pool-stat">
+                    <span>Cost:</span>
+                    <span class="pool-value">$${pool.estimated_cost_sharing_usd.toLocaleString()}</span>
+                </div>
+            `;
+            poolList.appendChild(poolDiv);
+        });
+    </script>
+</body>
+</html>

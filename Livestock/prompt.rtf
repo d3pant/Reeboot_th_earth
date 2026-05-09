@@ -1,0 +1,163 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2867
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Roman;\f1\fmodern\fcharset0 Courier;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww34000\viewh18700\viewkind0
+\deftab720
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 All files live in a single directory called 
+\f1\fs26 Livestock/
+\f0\fs24 . The directory currently contains no JSON files \'97 you must create all four of them: 
+\f1\fs26 wake_up_packet.json
+\f0\fs24 , 
+\f1\fs26 status.json
+\f0\fs24 , 
+\f1\fs26 farm_profile.json
+\f0\fs24 , and 
+\f1\fs26 neighboring_farms.json
+\f0\fs24 . Create 
+\f1\fs26 wake_up_packet.json
+\f0\fs24  and 
+\f1\fs26 status.json
+\f0\fs24  exactly matching the schemas pasted at the bottom of this prompt \'97 do not deviate from field names, structure, or values. Create 
+\f1\fs26 farm_profile.json
+\f0\fs24  and 
+\f1\fs26 neighboring_farms.json
+\f0\fs24  as realistic mocks consistent with the SoCal fire scenario in those input files, with matching coordinates, zone IDs (Z1/Z2), and threat timelines. Add a 0.5s delay between OSRM calls when batching more than 5 requests to avoid hitting rate limits on the public instance, and log the raw CalOES API response on first run at DEBUG level so the response can be verified. No 
+\f1\fs26 print()
+\f0\fs24  statements, no placeholder 
+\f1\fs26 pass
+\f0\fs24  blocks, no 
+\f1\fs26 TODO
+\f0\fs24  comments. Fully runnable with 
+\f1\fs26 python livestock_agent.py
+\f0\fs24 . Use 
+\f1\fs26 asyncio
+\f0\fs24  and 
+\f1\fs26 httpx.AsyncClient
+\f0\fs24  for all HTTP. Use 
+\f1\fs26 logging
+\f0\fs24  with timestamps throughout \'97 every OSRM call, every API query, every decision must be logged at INFO level with the pen_id or site name in the message.\
+Implement 
+\f1\fs26 livestock_agent.py
+\f0\fs24  as a standalone async Python module. This agent is Agent 3 in a wildfire agricultural advisory system. It is activated by reading 
+\f1\fs26 wake_up_packet.json
+\f0\fs24  and 
+\f1\fs26 status.json
+\f0\fs24  on startup and is responsible for animal evacuation planning, transport optimization, and streaming structured updates to the ERPC coordinator each cycle.\
+For Feature 1, query the official California Office of Emergency Services evacuation zones FeatureServer at 
+\f1\fs26 https://services.arcgis.com/BLN4oKB0N1YSgvY8/arcgis/rest/services/CA_EVACUATIONS_CalOESHosted_view/FeatureServer/0/query
+\f0\fs24  with these parameters: 
+\f1\fs26 geometry=\{lon\},\{lat\}
+\f0\fs24  as the farm centroid, 
+\f1\fs26 geometryType=esriGeometryPoint
+\f0\fs24 , 
+\f1\fs26 inSR=4326
+\f0\fs24 , 
+\f1\fs26 outSR=4326
+\f0\fs24 , 
+\f1\fs26 distance=50000
+\f0\fs24  (50km radius in meters), 
+\f1\fs26 units=esriSRUnit_Meter
+\f0\fs24 , 
+\f1\fs26 outFields=*
+\f0\fs24 , 
+\f1\fs26 f=geojson
+\f0\fs24 , 
+\f1\fs26 returnGeometry=true
+\f0\fs24 . Filter returned features to only keep those where the 
+\f1\fs26 Status
+\f0\fs24  field is 
+\f1\fs26 "EVACUATION WARNING"
+\f0\fs24  or 
+\f1\fs26 "NORMAL"
+\f0\fs24  \'97 exclude any 
+\f1\fs26 "EVACUATION ORDER"
+\f0\fs24  zones since routing animals into an active order zone is illegal. Extract the zone centroid from the geometry as the destination lat/lon and use 
+\f1\fs26 ZoneName
+\f0\fs24  or 
+\f1\fs26 ExternalIdentifier
+\f0\fs24  as the site name. If the API times out (use a 5s timeout) or returns zero results, fall back to two hardcoded SoCal sites: Fairplex Pomona at (34.0564, -117.7500) and Del Mar Fairgrounds at (32.9595, -117.2653).\
+For Feature 2, use the public OSRM API at 
+\f1\fs26 http://router.project-osrm.org/route/v1/driving/\{lon1\},\{lat1\};\{lon2\},\{lat2\}?overview=false
+\f0\fs24  to compute route duration and distance for each pen \'d7 each candidate evac site. Convert duration from seconds to hours and distance from meters to km. Handle timeouts (5s), HTTP errors, and malformed responses by logging the error and falling back to straight-line distance \'d7 1.35 road factor converted to hours at 60 km/h. After routing, select the nearest reachable evac site per pen by shortest duration. Before finalizing, apply a smoke penalty: if a candidate site's bearing from the farm falls within \'b145\'b0 of 
+\f1\fs26 smoke_trajectory.direction_degrees
+\f0\fs24  from the wake-up packet, add a 2-hour penalty to that site's duration but do not remove it entirely.\
+For Feature 3, compute a priority score (0\'96100) for each pen using this exact formula \'97 
+\f1\fs26 base_species
+\f0\fs24  is cattle=40, horse=50, sheep=30, pig=25, goat=28; 
+\f1\fs26 age_modifier
+\f0\fs24  is juvenile=+20, mixed=+10, adult=0; 
+\f1\fs26 health_modifier
+\f0\fs24  is sick=+20, mixed=+10, healthy=0; 
+\f1\fs26 value_score
+\f0\fs24  is 
+\f1\fs26 min(20, (avg_market_value_usd / 2000) * 20)
+\f0\fs24 ; 
+\f1\fs26 zone_urgency
+\f0\fs24  is 
+\f1\fs26 min(30, max(0, 100 - (time_to_impact_hours \'d7 8)))
+\f0\fs24 ; final 
+\f1\fs26 priority_score = base_species + age_modifier + health_modifier + value_score + zone_urgency
+\f0\fs24 . Sort all pens descending by priority_score and use this ordering for all movement decisions.\
+For Feature 4, after computing your own evacuation plan, load 
+\f1\fs26 neighboring_farms.json
+\f0\fs24  and check each neighbor for pooling eligibility: they qualify if they share at least one compatible species with one of your pens AND their evac destination is within 20km of your evac destination. For each qualifying pair, compute a shared OSRM route as your farm \uc0\u8594  neighbor farm \u8594  shared evac site and compare total time against each farm routing independently. If the pooled route saves more than 15 minutes total, mark it as a pool recommendation. For return trip utilization, after your truck drops animals at the evac site, compute an OSRM route as evac_site \u8594  neighbor_farm \u8594  neighbor_evac_site and compare against the neighbor doing a standalone trip. If the return-leg pickup saves the neighbor more than 20 minutes, flag it as 
+\f1\fs26 return_trip_assist: true
+\f0\fs24  in the output. Include a 
+\f1\fs26 transport_pool
+\f0\fs24  block in the ERPC message with fields: 
+\f1\fs26 pool_id
+\f0\fs24 , 
+\f1\fs26 farms_involved
+\f0\fs24 , 
+\f1\fs26 shared_route_summary
+\f0\fs24 , 
+\f1\fs26 time_saved_minutes
+\f0\fs24 , 
+\f1\fs26 return_trip_assist
+\f0\fs24  (bool), and 
+\f1\fs26 estimated_cost_sharing_usd
+\f0\fs24 .\
+Additionally, for each pen after computing 
+\f1\fs26 evac_time_hours
+\f0\fs24  from OSRM, if 
+\f1\fs26 evac_time_hours > time_to_impact_hours \'d7 0.8
+\f0\fs24  set 
+\f1\fs26 decision = "shelter_in_place"
+\f0\fs24  with a reason string, otherwise set 
+\f1\fs26 decision = "evacuate"
+\f0\fs24 . Map the threat level from 
+\f1\fs26 status.json
+\f0\fs24  to crisis phases as follows \'97 WATCH means pre-stage routes and identify sites but no movement yet; WARNING means issue movement orders by priority score and confirm transport; CRITICAL means execute movement, resolve conflicts, and trigger vet contacts; EMERGENCY means real-time tracking and flag animals that cannot be moved.\
+Write two output files each cycle. Write 
+\f1\fs26 livestock_status.json
+\f0\fs24  with this structure: timestamp, threat_level, phase, and a pens array where each pen has pen_id, priority_score, decision, decision_reason, assigned_evac_site (name/lat/lon/distance_km), route_duration_hours, route_source (osrm or fallback), smoke_penalty_applied (bool), assigned_vehicle, and movement_status (pending/in_transit/complete/cannot_move). Also include transport_pool array, blockers array, animals_at_risk_usd, animals_moved_count, and animals_remaining_count. Write 
+\f1\fs26 erpc_message.json
+\f0\fs24  with: sender set to "livestock_agent", timestamp, evacuation_status, animal_valuation_at_risk, transport_costs_usd, blockers array, transport_pool array, forecasting_requests array (each with type, zones, and reason), and crop_messages array (each with type, conflicting_path, and proposed_resolution).\
+The main loop must: load all input files, query CalOES for evac sites, compute OSRM routes for all pens \'d7 sites, score and sort pens, make evacuate/shelter decisions, compute transport pool and return trips, write both output files, then sleep for 
+\f1\fs26 next_update_minutes
+\f0\fs24  from 
+\f1\fs26 status.json
+\f0\fs24  and repeat.\
+The exact contents of 
+\f1\fs26 wake_up_packet.json
+\f0\fs24  and 
+\f1\fs26 status.json
+\f0\fs24  to create verbatim are as follows:\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\fs26 \cf0 status.json
+\f0\fs24 :\
+\pard\pardeftab720\partightenfactor0
+
+\f1\fs26 \cf0 \{"timestamp":"2026-05-09T01:20:31Z","stage":1,"threat_level":"CRITICAL","threat_level_confidence":0.85,"fwi_index":10.0,"fwi_threshold_farmer":9,"fwi_threshold_floor":12,"nearest_fire":\{"name":"Palisades Fire","distance_km":75.0,"location":\{"lat":33.72,"lon":-117.66\},"detected_at":"2026-05-08T06:00:00Z","current_size_acres":15000,"spread_rate_km_per_day":156.0,"direction_degrees":225,"current_perimeter":\{"type":"Polygon","coordinates":[[[-118.58,34.13],[-118.56,34.13],[-118.56,34.11],[-118.58,34.11],[-118.58,34.13]]]\}\},"nearest_fire_distance_threshold_farmer":100,"nearest_fire_distance_threshold_floor":75,"vegetation_ndvi_anomaly":-1.8,"vegetation_threshold_farmer":-1.5,"vegetation_threshold_floor":-2.0,"wind_speed_kmh":35,"wind_direction_degrees":225,"temperature_c":32,"humidity_percent":22,"gate_condition_met":true,"gate_condition_reason":"FWI 10.0 exceeds farmer threshold (9); fire at 75.0 km hits hard floor (75 km); vegetation stressed beyond farmer threshold (NDVI anomaly -1.8); multi-signal convergence detected","multi_signal_convergence":true,"next_update_minutes":15,"stage_transition_triggered":true\}\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 wake_up_packet.json
+\f0\fs24 :\
+\pard\pardeftab720\partightenfactor0
+
+\f1\fs26 \cf0 \{"activation_timestamp":"2026-05-09T01:20:31Z","farm_id":"farm_sdge_001","threat_level":"CRITICAL","threat_confidence":0.85,"affected_zones":[\{"zone_id":"Z1","name":"North Fields","risk_polygon":\{"type":"Polygon","coordinates":[[[-117.17,33.23],[-117.16,33.23],[-117.16,33.22],[-117.17,33.22],[-117.17,33.23]]]\},"time_to_impact_hours":11.0,"time_to_impact_uncertainty_hours":2.8,"threat_level":"CRITICAL"\},\{"zone_id":"Z2","name":"South Pasture","risk_polygon":\{"type":"Polygon","coordinates":[[[-117.17,33.22],[-117.16,33.22],[-117.16,33.21],[-117.17,33.21],[-117.17,33.22]]]\},"time_to_impact_hours":11.1,"time_to_impact_uncertainty_hours":2.8,"threat_level":"CRITICAL"\}],"fire_data":\{"name":"Palisades Fire","distance_km":75.0,"location":\{"lat":33.72,"lon":-117.66\},"detected_at":"2026-05-08T06:00:00Z","current_size_acres":15000,"spread_rate_km_per_day":156.0,"direction_degrees":225,"current_perimeter":\{"type":"Polygon","coordinates":[[[-118.58,34.13],[-118.56,34.13],[-118.56,34.11],[-118.58,34.11],[-118.58,34.13]]]\}\},"wifire_predictions":\{"source":"WIFIRE Firemap (mock)","fire_direction":225,"fire_speed_km_per_hour":6.5,"fire_spread_probability_next_6h":0.89,"affected_roads":["Highway 27","Topanga Canyon Blvd"],"nearest_community":\{"name":"Brentwood Heights","distance_km":3\},"fetched_at":"2026-05-09T01:20:31Z"\},"pyrecast_predictions":\{"source":"Pyrecast API (mock)","status":"pending","deferred_uid":"mock_abc123def456","expected_completion":"2026-05-08T14:35:00Z","fourteen_day_forecast":"will be populated when Pyrecast returns results","request_sent_at":"2026-05-09T01:20:31Z"\},"weather_forecast":\{"wind_speed_kmh":35,"wind_direction_degrees":225,"wind_gusts_kmh":48,"temperature_c":32,"humidity_percent":22,"forecast_valid_until":null\},"smoke_trajectory":\{"direction_degrees":45,"affected_zones":["Z1","Z2"],"visibility_impact":"heavy smoke"\},"messages_to_agents":\{"crop_agent":"Harvest North Fields, South Pasture immediately; fire impact in ~11.0h; coordinate evacuation routes with Livestock","livestock_agent":"Move high-value animals from North Fields, South Pasture within 9.0h; confirm transport capacity","erpc":"Initiate resource allocation: prioritize Crop harvest vs. Livestock movement ROI; activate insurance pre-notifications"\}\}\
+}
