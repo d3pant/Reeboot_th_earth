@@ -170,6 +170,7 @@
   <button id="refresh-btn" onclick="loadFires()">↻ Refresh</button>
   <button id="pick-btn" onclick="togglePickMode()">📍 Set Location</button>
   <button id="forecaster-btn" onclick="runForecaster()">⚡ Run Forecaster</button>
+  <button id="livestock-btn" onclick="runLivestock()" style="font-size: 12px; background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.5); color: #86efac; padding: 5px 14px; border-radius: 6px; cursor: pointer; transition: all 0.15s; font-weight: 600;">🐄 Livestock</button>
   <div id="farm-status"></div>
   <div id="fwi-badge"></div>
 </div>
@@ -597,6 +598,73 @@
       farmMarker.setLatLng([farmLat, farmLon]);
     }
   }).catch(() => {});
+
+  // ── Livestock ──
+  const livestockLayer = L.layerGroup().addTo(map);
+  const livestockSpeciesColors = { cattle: "#dc2626", horse: "#ea580c", sheep: "#2563eb", pig: "#9333ea", goat: "#16a34a" };
+
+  async function loadLivestock() {
+    try {
+      const res = await fetch("/api/livestock/status");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      livestockLayer.clearLayers();
+
+      if (data.pens && Array.isArray(data.pens)) {
+        data.pens.forEach(pen => {
+          try {
+            L.circleMarker([pen.lat, pen.lon], {
+              radius: 8,
+              fillColor: livestockSpeciesColors[pen.species] || "#999",
+              color: pen.decision === "evacuate" ? "#10b981" : "#ef4444",
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.8,
+            }).addTo(livestockLayer).bindPopup(`${pen.pen_id} (${pen.species})<br>Priority: ${pen.priority_score.toFixed(1)}/100<br>${pen.decision.toUpperCase()}`);
+
+            // Draw route to evac site
+            if (pen.assigned_evac_site) {
+              L.polyline([[pen.lat, pen.lon], [pen.assigned_evac_site.lat, pen.assigned_evac_site.lon]], {
+                color: livestockSpeciesColors[pen.species],
+                weight: 3,
+                opacity: 0.5,
+                dashArray: "4,4",
+              }).addTo(livestockLayer);
+
+              L.circleMarker([pen.assigned_evac_site.lat, pen.assigned_evac_site.lon], {
+                radius: 12,
+                fillColor: "#10b981",
+                color: "#047857",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.6,
+              }).addTo(livestockLayer).bindPopup(pen.assigned_evac_site.name);
+            }
+          } catch (pe) {
+            console.warn("Pen error:", pe);
+          }
+        });
+      }
+    } catch (e) {
+      console.error("Livestock error:", e);
+    }
+  }
+
+  async function runLivestock() {
+    const btn = document.getElementById("livestock-btn");
+    btn.disabled = true;
+    btn.textContent = "⏳ Running...";
+    try {
+      await fetch("/api/livestock/run", { method: "POST" });
+      await loadLivestock();
+    } catch (e) {
+      console.error("Livestock run error:", e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🐄 Livestock";
+    }
+  }
 
   loadFires();
   setInterval(loadFires, 5 * 60 * 1000);

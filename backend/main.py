@@ -400,3 +400,52 @@ async def run_forecaster(
         json.dump(status, f, indent=2, default=str)
 
     return JSONResponse(status)
+
+
+# ---------------------------------------------------------------------------
+# Livestock endpoints
+# ---------------------------------------------------------------------------
+
+LIVESTOCK_DIR = Path(__file__).parent.parent / "Livestock"
+LIVESTOCK_STATUS_JSON = LIVESTOCK_DIR / "livestock_status.json"
+
+
+@app.get("/api/livestock/status")
+def get_livestock_status():
+    """Return the latest livestock evacuation status."""
+    if not LIVESTOCK_STATUS_JSON.exists():
+        raise HTTPException(status_code=404, detail="livestock_status.json not found — run livestock_agent.py first")
+    with open(LIVESTOCK_STATUS_JSON) as f:
+        return JSONResponse(json.load(f))
+
+
+@app.post("/api/livestock/run")
+async def run_livestock_agent():
+    """Run the livestock evacuation agent."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["python3", "livestock_agent.py"],
+            cwd=LIVESTOCK_DIR,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+
+        # Return latest status regardless of exit code
+        if LIVESTOCK_STATUS_JSON.exists():
+            with open(LIVESTOCK_STATUS_JSON) as f:
+                return JSONResponse(json.load(f))
+        return JSONResponse({"status": "complete", "message": "Livestock agent executed"})
+    except subprocess.TimeoutExpired:
+        # Return whatever we have
+        if LIVESTOCK_STATUS_JSON.exists():
+            with open(LIVESTOCK_STATUS_JSON) as f:
+                return JSONResponse(json.load(f))
+        return JSONResponse({"status": "timeout", "message": "Agent took too long but may have completed"})
+    except Exception as e:
+        # Still try to return data
+        if LIVESTOCK_STATUS_JSON.exists():
+            with open(LIVESTOCK_STATUS_JSON) as f:
+                return JSONResponse(json.load(f))
+        raise HTTPException(status_code=500, detail=f"Livestock agent error: {str(e)}")
