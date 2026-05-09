@@ -88,10 +88,10 @@ Runs during Stage 2. Each cycle computes total financial exposure and produces a
 
 | Category | What It Covers | Source |
 |----------|---------------|--------|
-| Crop loss (confirmed) | ABANDON fields — loss locked in | Crop Agent `task2.confidence_adjusted_loss_usd` |
-| Crop loss (recoverable) | HARVEST NOW / PARTIAL HARVEST fields — preventable with action | Crop Agent `task2` + `task4.maturity_pct` |
-| Livestock at risk | `total_head × value/head × (1 − evacuated_pct)` | Livestock Agent (hardcoded stub until agent exists) |
-| Opportunity cost | 1 lost season × price/acre × acres for ABANDON; partial season for PARTIAL HARVEST | Crop Agent `task2.price_per_acre_usd` + `task4.maturity_pct` |
+| Crop loss (confirmed) | ABANDON fields — loss locked in | `crop_agent/crop_agent_output_*.json` → `economic_impact.crop_destructions` |
+| Crop loss (recoverable) | HARVEST NOW / PARTIAL HARVEST fields — preventable with action | Same + `field_decisions.maturity_pct` |
+| Livestock at risk | `total_head × value/head × (1 − evacuated_pct)` | `Livestock/erpc_message.json` → `animal_valuation_at_risk`, `total_animals_at_risk` |
+| Opportunity cost | 1 lost season × price/acre × acres for ABANDON; partial season for PARTIAL HARVEST | `economic_impact.price_per_acre_usd` + `field_decisions.maturity_pct` |
 
 Loss figure used throughout: `confidence_adjusted_loss_usd` — conservative floor, not best-case.
 
@@ -110,7 +110,7 @@ ROI = confidence_adjusted_loss_avoided / estimated_action_cost
 | PARTIAL HARVEST | `confidence_adjusted_loss_usd × maturity_pct` | Labor rate × hours × maturity fraction | Before `fire_arrival_hours` |
 | TRANSPLANT | Seedling replacement value | Labor rate × `labor_hours_needed` | Before `time_window` |
 | WET FIREBREAK | `confidence_adjusted_loss_usd` of protected field | Firebreak cost × field acres | IMMEDIATE or SCHEDULED |
-| EVACUATE LIVESTOCK | Livestock at-risk value | Transport cost × head count | Zone time-to-impact |
+| EVACUATE LIVESTOCK | `Livestock/erpc_message.json` at-risk value | `transport_costs_usd` from Livestock Agent | Zone time-to-impact |
 
 Feasibility gates (hard — action dropped if failed): `feasible_with_farm_resources = False`, insufficient time window, or field decision is ABANDON.
 
@@ -121,9 +121,9 @@ Feasibility gates (hard — action dropped if failed): `feasible_with_farm_resou
 | Harvest labor rate | $25 | $/hr | USDA regional farm wage data |
 | Harvest time | 4 | hrs/acre | Per-crop estimate from Crop Agent |
 | Firebreak cost | $150 | $/acre | CAL FIRE cost estimates |
-| Livestock transport | $35 | $/head | Regional hauling rates |
-| Livestock value | $1,500 | $/head | Livestock Agent market price |
-| Livestock head count | 750 | head | Livestock Agent inventory |
+| Livestock transport | Live | $/total | From `Livestock/erpc_message.json` `transport_costs_usd` |
+| Livestock value/head | Live | $/head | From `animal_valuation_at_risk / total_animals_at_risk` |
+| Livestock head count | Live | head | From `Livestock/erpc_message.json` `total_animals_at_risk` |
 | Transplant seedling value | $800 | $/acre | Nursery price index |
 | Opportunity cost horizon | 1 | season | Agronomist input |
 
@@ -160,7 +160,7 @@ The agent pre-populates all fields it has data for and leaves the rest blank so 
 
 Runs post-event (after all-clear). Evaluates farm eligibility for 21 wildfire recovery programs across USDA, FEMA, SBA, and CA state agencies. Outputs a ranked list (confirmed → likely → check_required → ineligible) with deadlines, required documents, and direct links.
 
-Key logic: FEMA Disaster Declarations API is queried first — that single boolean gates whether FEMA IA, FEMA HMGP, FSA Emergency Loans, and SBA EIDL are `confirmed` or `check_required`. All other programs are evaluated against hardcoded farm profile constants.
+Key logic: FEMA Disaster Declarations API is queried first — that single boolean gates whether FEMA IA, FEMA HMGP, FSA Emergency Loans, and SBA EIDL are `confirmed` or `check_required`. Loss flags (`crop_loss`, `livestock_loss`, `economic_injury`) are derived live from `econ_report.json`. All other eligibility fields use hardcoded farm profile constants.
 
 ---
 

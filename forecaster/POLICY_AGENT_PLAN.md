@@ -8,13 +8,15 @@ aid programs, grants, subsidies, and recovery initiatives the farmer qualifies f
 
 ## Status
 
-- [ ] Hardcoded program catalog (17 programs)
-- [ ] Eligibility engine (rule evaluation against farm profile)
-- [ ] FEMA Disaster Declarations API integration
-- [ ] Grants.gov API integration
-- [ ] Program deadlines cache (weekly scrape of farmers.gov)
-- [ ] Structured output format finalized
-- [ ] Integration with ERPC
+- [x] Hardcoded program catalog (21 programs — 9 FSA, 2 NRCS, 3 FEMA, 1 SBA, 2 UN/FAO, 4 CA state)
+- [x] Eligibility engine (rule evaluation against farm profile)
+- [x] FEMA Disaster Declarations API integration
+- [x] Grants.gov API integration
+- [x] Program deadlines cache (weekly scrape of farmers.gov)
+- [x] Structured output format finalized
+- [x] Loss summary derived from `econ_report.json` (crop_loss, livestock_loss, economic_injury flags)
+- [ ] Integration with ERPC pipeline trigger
+- [ ] `farmer_profile.json` for remaining hardcoded eligibility flags
 
 ---
 
@@ -32,25 +34,23 @@ Output written to: `forecaster/output/policy_report.json`
 Post-event only. Called by ERPC when Forecasting Agent issues all-clear.
 Input: farm profile + loss summary from Crop/Livestock agents.
 
-### Loss Summary Input (Hardcoded Until Crop/Livestock Agents Exist)
+### Loss Summary Input
 
-The policy agent accepts an optional `loss_summary` dict. When `None`, all
-loss-dependent eligibility fields fall back to hardcoded assumptions below.
-Future work: Crop and Livestock agents will produce this dict and pass it in.
+The policy agent derives loss flags from `forecaster/output/econ_report.json` at runtime.
+Three flags are now live; the rest remain hardcoded as conservative defaults.
 
-```python
-# Hardcoded loss summary used when loss_summary=None
-HARDCODED_LOSS_SUMMARY = {
-    "crop_loss": True,               # triggers NAP, SDRP
-    "livestock_loss": True,          # triggers LIP
-    "livestock_deaths": True,        # triggers LIP specifically
-    "forage_loss": True,             # triggers LFP, ELRP
-    "infrastructure_damage": True,   # triggers ECP
-    "forested_parcel_damage": False, # triggers EFRP — hardcoded False (no forested parcels)
-    "watershed_damage": False,       # triggers EWP — hardcoded False
-    "economic_injury": True,         # triggers SBA EIDL
-}
-```
+| Flag | Source | Status |
+|------|--------|--------|
+| `crop_loss` | `econ_report.json` → `crop_loss_total_usd > 0` | Live |
+| `livestock_loss` | `econ_report.json` → `livestock_at_risk_usd > 0` | Live |
+| `economic_injury` | `econ_report.json` → `total_exposure_usd > 0` | Live |
+| `livestock_deaths` | `HARDCODED_LOSS_SUMMARY` | Hardcoded (no source yet) |
+| `forage_loss` | `HARDCODED_LOSS_SUMMARY` | Hardcoded (no source yet) |
+| `infrastructure_damage` | `HARDCODED_LOSS_SUMMARY` | Hardcoded (no source yet) |
+| `forested_parcel_damage` | `HARDCODED_LOSS_SUMMARY` | Hardcoded False |
+| `watershed_damage` | `HARDCODED_LOSS_SUMMARY` | Hardcoded False |
+
+Falls back to full `HARDCODED_LOSS_SUMMARY` if `econ_report.json` is unavailable.
 
 ### Disaster Event Date
 
@@ -116,7 +116,7 @@ Make dynamic: replace with official FEMA declaration date once that API is integ
 
 ## Hardcoded Program Catalog
 
-All 17 programs below are hardcoded pending dynamic data sources.
+All 21 programs below are hardcoded pending dynamic data sources.
 When a field is made dynamic, mark it with the source.
 
 ### USDA — Farm Service Agency (FSA)
@@ -224,8 +224,7 @@ All others remain hardcoded constants in the agent.
 ## Dependencies & Integration Points
 
 - **Input from Forecasting Agent:** `forecaster/output/status.json` → `threat_level`, `nearest_fire.detected_at`
-- **Input from Crop Agent:** `loss_summary` dict — hardcoded as `HARDCODED_LOSS_SUMMARY` until Crop Agent exists
-- **Input from Livestock Agent:** folded into same `loss_summary` dict — same stub
+- **Input from Econ Agent:** `forecaster/output/econ_report.json` → derives `crop_loss`, `livestock_loss`, `economic_injury` flags; remaining loss flags fall back to `HARDCODED_LOSS_SUMMARY`
 - **Output written to:** `forecaster/output/policy_report.json`
 - **Output to ERPC:** structured list of `EligibleProgram` objects (schema above)
 - **Gateway dependency to flag:** LFP must be filed before ELRP auto-payment triggers — policy agent must surface this ordering in output

@@ -8,8 +8,11 @@ Runs during Stage 2 (fire threat active). Each monitoring cycle:
 Usage:
     python econ_agent.py [--dry-run]
 
-All cost constants are in COST_ASSUMPTIONS below. All livestock data is hardcoded
-in HARDCODED_LIVESTOCK until the Livestock Agent exists. See ECON_AGENT_PLAN.md.
+Live data sources (fall back to mock/hardcoded if unavailable):
+  - Crop data: crop_agent/crop_agent_output_*.json (latest file)
+  - Livestock data: Livestock/erpc_message.json
+
+All cost constants are in COST_ASSUMPTIONS. See ECON_AGENT_PLAN.md.
 """
 
 from __future__ import annotations
@@ -31,6 +34,10 @@ logger = logging.getLogger("econ_agent")
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 STATUS_JSON = OUTPUT_DIR / "status.json"
+
+REPO_ROOT = Path(__file__).parent.parent.parent
+CROP_AGENT_DIR = REPO_ROOT / "crop_agent"
+LIVESTOCK_ERPC_MSG = REPO_ROOT / "Livestock" / "erpc_message.json"
 
 # ---------------------------------------------------------------------------
 # Hardcoded cost assumptions
@@ -87,6 +94,54 @@ MOCK_CROP_DATA = {
         {"field_id": "F5", "intensity_score": 18.8, "hours_to_arrival": 13.44, "technique": "WET FIREBREAK", "urgency": "SCHEDULED", "reason": "Intensity score > 14 and hours to arrival <= 6"},
     ],
 }
+
+# ---------------------------------------------------------------------------
+# Live data loaders
+# ---------------------------------------------------------------------------
+
+def _load_crop_data() -> tuple[dict, str]:
+    """Load crop agent output. Returns (data, source) where source is 'live' or 'mock'."""
+    outputs = sorted(CROP_AGENT_DIR.glob("crop_agent_output_*.json"))
+    if outputs:
+        try:
+            with open(outputs[-1]) as f:
+                raw = json.load(f)
+            # Crop agent uses different key names — remap to econ agent's internal schema
+            data = {
+                "task4": raw.get("field_decisions", []),
+                "task1": raw.get("fire_reduction", []),
+                "task2": raw.get("economic_impact", {}),
+                "task3": raw.get("hydration_strategy", []),
+            }
+            if data["task2"].get("crop_destructions"):
+                logger.info("Loaded crop data from %s", outputs[-1].name)
+                return data, "live"
+        except Exception as e:
+            logger.warning("Failed to load crop agent output: %s", e)
+    logger.warning("No crop agent output found — using MOCK_CROP_DATA")
+    return MOCK_CROP_DATA, "mock"
+
+
+def _load_livestock_data() -> tuple[dict, str]:
+    """Load livestock agent output. Returns (data, source)."""
+    try:
+        with open(LIVESTOCK_ERPC_MSG) as f:
+            msg = json.load(f)
+        total = msg.get("cost_optimization", {}).get("total_animals_at_risk", 0)
+        at_risk_value = msg.get("animal_valuation_at_risk", 0)
+        transport_cost = msg.get("transport_costs_usd", 0)
+        if total > 0:
+            return {
+                "total_head": total,
+                "value_per_head_usd": round(at_risk_value / total, 2),
+                "evacuated_pct": 0.0,
+                "transport_cost_usd": transport_cost,
+            }, "live"
+    except Exception as e:
+        logger.warning("Failed to load livestock erpc_message.json: %s", e)
+    logger.warning("Using HARDCODED_LIVESTOCK")
+    return {**HARDCODED_LIVESTOCK, "transport_cost_usd": None}, "hardcoded_stub"
+
 
 # ---------------------------------------------------------------------------
 # Output schema
@@ -320,7 +375,10 @@ def _build_actions(crop_data: dict, livestock: dict) -> tuple[list[EconAction], 
         * (1.0 - livestock["evacuated_pct"])
     )
     if livestock_at_risk > 0:
-        transport_cost = c["livestock_transport_cost_usd_per_head"] * livestock["total_head"]
+        # Use actual transport cost from Livestock Agent if available, else estimate
+        transport_cost = livestock.get("transport_cost_usd") or (
+            c["livestock_transport_cost_usd_per_head"] * livestock["total_head"]
+        )
         roi = round(livestock_at_risk / transport_cost, 1) if transport_cost > 0 else 0.0
         feasible.append(EconAction(
             action_id="EVACUATE_LIVESTOCK",
@@ -369,13 +427,14 @@ class EconAgent:
             return "UNKNOWN"
 
     def run(self, crop_data: Optional[dict] = None, livestock: Optional[dict] = None) -> dict:
-        """Run the full econ pipeline. Pass None to use hardcoded stubs."""
+        """Run the full econ pipeline. Loads live data unless overridden."""
+        crop_source = "override"
+        livestock_source = "override"
+
         if crop_data is None:
-            logger.info("No crop_data provided — using MOCK_CROP_DATA")
-            crop_data = MOCK_CROP_DATA
+            crop_data, crop_source = _load_crop_data()
         if livestock is None:
-            logger.info("No livestock data provided — using HARDCODED_LIVESTOCK")
-            livestock = HARDCODED_LIVESTOCK
+            livestock, livestock_source = _load_livestock_data()
 
         threat_level = self._load_threat_level()
         exposure = _compute_financial_exposure(crop_data, livestock)
@@ -390,8 +449,8 @@ class EconAgent:
             "action_queue": [a.to_dict() for a in action_queue],
             "infeasible_actions": [a.to_dict() for a in infeasible_actions],
             "data_sources": {
-                "crop_agent": "mock" if crop_data is MOCK_CROP_DATA else "live",
-                "livestock_agent": "hardcoded_stub",
+                "crop_agent": crop_source,
+                "livestock_agent": livestock_source,
             },
         }
 

@@ -8,11 +8,13 @@ available response actions by ROI so the farmer has a single prioritized action 
 
 ## Status
 
-- [ ] Financial loss estimation (crop, livestock, opportunity cost)
-- [ ] ROI action ranking engine
-- [ ] Hardcoded cost assumptions catalog
-- [ ] Output schema finalized
-- [ ] Integration with ERPC
+- [x] Financial loss estimation (crop, livestock, opportunity cost)
+- [x] ROI action ranking engine
+- [x] Hardcoded cost assumptions catalog (logged in output JSON)
+- [x] Output schema finalized
+- [x] Live crop data from `crop_agent/crop_agent_output_*.json` (with mock fallback)
+- [x] Live livestock data from `Livestock/erpc_message.json` (with hardcoded fallback)
+- [ ] Integration with ERPC pipeline trigger
 
 ---
 
@@ -56,19 +58,24 @@ Key fields used per feature:
 - `task3[].urgency` → maps to action priority (IMMEDIATE > SCHEDULED)
 - `task3[].technique` → cost lookup key (e.g., WET FIREBREAK → hardcoded $/acre)
 
-### From Livestock Agent (not yet built — hardcoded stub)
+### From Livestock Agent — `Livestock/erpc_message.json`
 
-```python
-# Hardcoded until Livestock Agent exists.
-# Future work: replace with real livestock agent output.
-# See "Hardcoded Values" table below.
-HARDCODED_LIVESTOCK = {
-    "total_head": 750,           # matches farm_config zones (250 + 500)
-    "value_per_head_usd": 1500,  # hardcoded average — make dynamic from livestock agent
-    "evacuated_pct": 0.0,        # 0% evacuated at start of cycle
-    "at_risk_value_usd": 1125000.0,
+```json
+{
+  "animal_valuation_at_risk": 442000,
+  "transport_costs_usd": 7455,
+  "cost_optimization": {
+    "total_animals_at_risk": 497,
+    "animals_can_evacuate": 497,
+    "value_can_save_usd": 442000,
+    "potential_loss_usd": 0
+  }
 }
 ```
+
+Mapping: `total_animals_at_risk` → `total_head`, `animal_valuation_at_risk / total_head` → `value_per_head_usd`, `transport_costs_usd` → actual EVACUATE_LIVESTOCK action cost.
+
+Falls back to `HARDCODED_LIVESTOCK` (750 head × $1,500/head) if file not found.
 
 ### From Forecasting Agent
 
@@ -212,10 +219,10 @@ All cost constants are hardcoded in `econ_agent.py` as a `COST_ASSUMPTIONS` dict
 | `HARVEST_LABOR_RATE_USD_PER_HOUR` | 25 | $/hr | Farmer labor cost input or regional USDA farm wage data |
 | `HARVEST_HOURS_PER_ACRE` | 4 | hrs/acre | Crop-specific — hardcoded average; make per-crop from crop agent |
 | `FIREBREAK_COST_USD_PER_ACRE` | 150 | $/acre | CAL FIRE cost estimates or farmer input |
-| `LIVESTOCK_TRANSPORT_COST_USD_PER_HEAD` | 35 | $/head | Regional livestock hauling rates |
-| `LIVESTOCK_VALUE_PER_HEAD_USD` | 1500 | $/head | Livestock agent market price lookup |
-| `LIVESTOCK_TOTAL_HEAD` | 750 | head | Livestock agent inventory |
-| `LIVESTOCK_EVACUATED_PCT` | 0.0 | fraction | Livestock agent real-time evacuation status |
+| `LIVESTOCK_TRANSPORT_COST_USD_PER_HEAD` | 35 | $/head | **Now live** from `Livestock/erpc_message.json` `transport_costs_usd` |
+| `LIVESTOCK_VALUE_PER_HEAD_USD` | 1500 | $/head | **Now live** from `animal_valuation_at_risk / total_animals_at_risk` |
+| `LIVESTOCK_TOTAL_HEAD` | 750 | head | **Now live** from `Livestock/erpc_message.json` `total_animals_at_risk` |
+| `LIVESTOCK_EVACUATED_PCT` | 0.0 | fraction | Still hardcoded — needs real-time evacuation status from Livestock Agent |
 | `TRANSPLANT_SEEDLING_VALUE_USD_PER_ACRE` | 800 | $/acre | Crop agent or nursery price index |
 | `OPPORTUNITY_COST_SEASONS` | 1 | seasons | Agronomist input — assumed 1 lost season for ABANDON fields |
 
@@ -236,8 +243,8 @@ All cost constants are hardcoded in `econ_agent.py` as a `COST_ASSUMPTIONS` dict
 
 ## Dependencies & Integration Points
 
-- **Input from Crop Agent:** `task2`, `task4`, `task1`, `task3` JSON (schema above)
-- **Input from Livestock Agent:** hardcoded stub — see `HARDCODED_LIVESTOCK`; replace when agent exists
+- **Input from Crop Agent:** `crop_agent/crop_agent_output_*.json` (latest) — keys remapped: `field_decisions`→task4, `fire_reduction`→task1, `economic_impact`→task2, `hydration_strategy`→task3
+- **Input from Livestock Agent:** `Livestock/erpc_message.json` — `total_animals_at_risk`, `animal_valuation_at_risk`, `transport_costs_usd`
 - **Input from Forecasting Agent:** `forecaster/output/status.json` → `threat_level`
 - **Output to ERPC:** `econ_report.json` — financial exposure breakdown + ranked action list
 - **Output written to:** `forecaster/output/econ_report.json`

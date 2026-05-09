@@ -40,6 +40,7 @@ CONFIG_DIR = Path(__file__).parent.parent / "config"
 DATA_DIR = Path(__file__).parent.parent / "data"
 DEADLINES_CACHE = DATA_DIR / "program_deadlines_cache.json"
 STATUS_JSON = OUTPUT_DIR / "status.json"
+ECON_REPORT = OUTPUT_DIR / "econ_report.json"
 DEADLINES_CACHE_MAX_AGE_DAYS = 7
 
 # ---------------------------------------------------------------------------
@@ -204,6 +205,29 @@ def _load_deadlines_cache() -> dict:
     except Exception as exc:
         logger.warning("Failed to read deadlines cache: %s", exc)
         return {}
+
+
+# ---------------------------------------------------------------------------
+# Loss summary loader
+# ---------------------------------------------------------------------------
+
+def _load_loss_summary() -> dict:
+    """Derive boolean loss flags from econ_report.json. Falls back to HARDCODED_LOSS_SUMMARY."""
+    try:
+        with open(ECON_REPORT) as f:
+            report = json.load(f)
+        exp = report.get("financial_exposure", {})
+        derived = {
+            **HARDCODED_LOSS_SUMMARY,
+            "crop_loss": exp.get("crop_loss_total_usd", 0) > 0,
+            "livestock_loss": exp.get("livestock_at_risk_usd", 0) > 0,
+            "economic_injury": exp.get("total_exposure_usd", 0) > 0,
+        }
+        logger.info("Loss summary derived from econ_report.json")
+        return derived
+    except Exception:
+        logger.warning("Could not read econ_report.json — using HARDCODED_LOSS_SUMMARY")
+        return HARDCODED_LOSS_SUMMARY
 
 
 # ---------------------------------------------------------------------------
@@ -752,9 +776,7 @@ class PolicyAgent:
 
     def run(self, loss_summary: Optional[dict] = None) -> dict:
         """Run the full policy eligibility pipeline. Returns the report dict."""
-        loss = loss_summary or HARDCODED_LOSS_SUMMARY
-        if loss_summary is None:
-            logger.info("No loss_summary provided — using HARDCODED_LOSS_SUMMARY")
+        loss = loss_summary if loss_summary is not None else _load_loss_summary()
 
         state = self.farm_config["location"]["state"]
         county = self.farm_config["location"]["county"]
