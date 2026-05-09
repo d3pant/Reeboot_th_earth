@@ -408,44 +408,135 @@ async def run_forecaster(
 
 LIVESTOCK_DIR = Path(__file__).parent.parent / "Livestock"
 LIVESTOCK_STATUS_JSON = LIVESTOCK_DIR / "livestock_status.json"
+CROP_DIR = Path(__file__).parent.parent / "crop_agent"
+
+
+def _sync_forecaster_to_livestock():
+    """Copy latest forecaster outputs into Livestock/ before running the agent."""
+    import shutil
+
+    if STATUS_JSON.exists():
+        shutil.copy(STATUS_JSON, LIVESTOCK_DIR / "status.json")
+
+    wake_up_src = FORECASTER_DIR / "output" / "wake_up_packet.json"
+    if wake_up_src.exists():
+        shutil.copy(wake_up_src, LIVESTOCK_DIR / "wake_up_packet.json")
+    elif STATUS_JSON.exists():
+        # Build minimal wake_up from status so the agent doesn't crash
+        with open(STATUS_JSON) as f:
+            st = json.load(f)
+        smoke_dir = (st.get("wind_direction_degrees") or 0 + 180) % 360
+        minimal = {
+            "affected_zones": [
+                {"zone_id": "Z1", "time_to_impact_hours": 11.0},
+                {"zone_id": "Z2", "time_to_impact_hours": 11.1},
+            ],
+            "smoke_trajectory": {"direction_degrees": smoke_dir},
+        }
+        with open(LIVESTOCK_DIR / "wake_up_packet.json", "w") as f:
+            json.dump(minimal, f)
 
 
 @app.get("/api/livestock/status")
 def get_livestock_status():
     """Return the latest livestock evacuation status."""
     if not LIVESTOCK_STATUS_JSON.exists():
-        raise HTTPException(status_code=404, detail="livestock_status.json not found — run livestock_agent.py first")
+        raise HTTPException(status_code=404, detail="livestock_status.json not found — run livestock agent first")
     with open(LIVESTOCK_STATUS_JSON) as f:
         return JSONResponse(json.load(f))
 
 
 @app.post("/api/livestock/run")
 async def run_livestock_agent():
-    """Run the livestock evacuation agent."""
+    """Sync forecaster data then run the livestock evacuation agent."""
     import subprocess
+    _sync_forecaster_to_livestock()
     try:
         result = subprocess.run(
             ["python3", "livestock_agent.py"],
             cwd=LIVESTOCK_DIR,
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=120,
         )
-
-        # Return latest status regardless of exit code
         if LIVESTOCK_STATUS_JSON.exists():
             with open(LIVESTOCK_STATUS_JSON) as f:
                 return JSONResponse(json.load(f))
-        return JSONResponse({"status": "complete", "message": "Livestock agent executed"})
+        detail = result.stderr[-400:] if result.stderr else "No output produced"
+        raise HTTPException(status_code=500, detail=detail)
     except subprocess.TimeoutExpired:
-        # Return whatever we have
         if LIVESTOCK_STATUS_JSON.exists():
             with open(LIVESTOCK_STATUS_JSON) as f:
                 return JSONResponse(json.load(f))
-        return JSONResponse({"status": "timeout", "message": "Agent took too long but may have completed"})
+        return JSONResponse({"status": "timeout", "message": "Agent timed out but may have completed"})
+    except HTTPException:
+        raise
     except Exception as e:
-        # Still try to return data
-        if LIVESTOCK_STATUS_JSON.exists():
-            with open(LIVESTOCK_STATUS_JSON) as f:
-                return JSONResponse(json.load(f))
-        raise HTTPException(status_code=500, detail=f"Livestock agent error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Livestock agent error: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Crop endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/crop/status")
+def get_crop_status():
+    """Return the latest crop agent output."""
+    outputs = sorted(CROP_DIR.glob("crop_agent_output_*.json"),
+                     key=lambda p: p.stat().st_mtime, reverse=True)
+    if not outputs:
+        raise HTTPException(status_code=404, detail="No crop agent output — run crop agent first")
+    with open(outputs[0]) as f:
+        data = json.load(f)
+    erpc = CROP_DIR / "output_to_erpc.json"
+    if erpc.exists():
+        with open(erpc) as f:
+            data["erpc_output"] = json.load(f)
+    return JSONResponse(data)
+
+
+@app.post("/api/crop/run")
+async def run_crop_agent():
+    """Feed forecaster status into the crop agent and return field decisions."""
+    import subprocess
+    from dotenv import dotenv_values
+
+    if not STATUS_JSON.exists():
+        raise HTTPException(status_code=404, detail="Run the forecaster first — no status.json found")
+
+    # Merge backend .env + crop_agent/.env into subprocess environment
+    env = os.environ.copy()
+    crop_env_file = CROP_DIR / ".env"
+    if crop_env_file.exists():
+        env.update({k: v for k, v in dotenv_values(crop_env_file).items() if v})
+
+    if not env.get("GROQ_API_KEY"):
+        raise HTTPException(status_code=400, detail="GROQ_API_KEY not set — add it to crop_agent/.env")
+
+    try:
+        proc = subprocess.run(
+            ["python3", "crop_agent.py", str(STATUS_JSON)],
+            cwd=CROP_DIR,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            env=env,
+        )
+        outputs = sorted(CROP_DIR.glob("crop_agent_output_*.json"),
+                         key=lambda p: p.stat().st_mtime, reverse=True)
+        if outputs:
+            with open(outputs[0]) as f:
+                data = json.load(f)
+            erpc = CROP_DIR / "output_to_erpc.json"
+            if erpc.exists():
+                with open(erpc) as f:
+                    data["erpc_output"] = json.load(f)
+            return JSONResponse(data)
+        detail = proc.stderr[-500:] if proc.stderr else proc.stdout[-500:] or "No output produced"
+        raise HTTPException(status_code=500, detail=detail)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Crop agent timed out (180s)")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
