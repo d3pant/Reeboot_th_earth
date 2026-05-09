@@ -1,0 +1,14 @@
+# Environment — never commit real credentials
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Runtime outputs
+crop_agent/crop_agent_output_*.json
+crop_agent/crop_agent_raw_*.txt
+crop_agent/output_to_erpc.json

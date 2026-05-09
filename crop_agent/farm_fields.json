@@ -1,0 +1,34 @@
+{
+  "farm_id": "farm_sdge_001",
+  "farm_name": "Vista Verde Ranch",
+  "fields": [
+    {
+      "field_id": "F1",
+      "crop_category": "avocado",
+      "location": { "lat": 33.226, "lon": -117.165 },
+      "size_acres": 32,
+      "planting_date": "2021-03-15"
+    },
+    {
+      "field_id": "F2",
+      "crop_category": "citrus",
+      "location": { "lat": 33.223, "lon": -117.162 },
+      "size_acres": 18,
+      "planting_date": "2020-11-01"
+    },
+    {
+      "field_id": "F3",
+      "crop_category": "strawberries",
+      "location": { "lat": 33.220, "lon": -117.160 },
+      "size_acres": 12,
+      "planting_date": "2025-10-01"
+    },
+    {
+      "field_id": "F4",
+      "crop_category": "tomatoes",
+      "location": { "lat": 33.228, "lon": -117.170 },
+      "size_acres": 25,
+      "planting_date": "2026-02-15"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "farm_id": "farm_test_003",
+  "farm_name": "No-Threat Gate Test Farm",
+  "fields": [
+    {
+      "field_id": "F1",
+      "crop_category": "tomatoes",
+      "location": { "lat": 36.50, "lon": -119.50 },
+      "size_acres": 40,
+      "planting_date": "2026-01-01"
+    }
+  ]
+}

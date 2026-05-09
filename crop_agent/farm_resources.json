@@ -1,0 +1,28 @@
+{
+  "farm_id": "farm_sdge_001",
+  "labor": {
+    "total_workers": 8,
+    "skilled_operators": 2,
+    "general_labor": 6
+  },
+  "equipment": {
+    "tractors": 2,
+    "small_rototiller": 1,
+    "irrigation_pump": 2,
+    "flatbed_truck": 1,
+    "hand_tools": true,
+    "hydraulic_tree_spade": false,
+    "combine_harvester": false,
+    "disc_plow": true
+  },
+  "water": {
+    "irrigation_system": "drip and sprinkler",
+    "water_pressure_available": true,
+    "emergency_pump_capacity_liters_per_hour": 18000
+  },
+  "transport": {
+    "trucks_available": 1,
+    "truck_capacity_plants": 200,
+    "nearest_safe_nursery_km": 12
+  }
+}

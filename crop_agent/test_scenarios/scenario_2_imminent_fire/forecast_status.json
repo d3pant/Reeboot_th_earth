@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-05-08T10:00:00Z",
+  "stage": 1,
+  "threat_level": "EXTREME",
+  "threat_level_confidence": 0.95,
+  "fwi_index": 22.0,
+  "fwi_threshold_farmer": 9,
+  "fwi_threshold_floor": 12,
+  "nearest_fire": {
+    "name": "Fast Canyon Fire",
+    "distance_km": 18.0,
+    "location": { "lat": 34.22, "lon": -118.38 },
+    "detected_at": "2026-05-08T04:00:00Z",
+    "current_size_acres": 25000,
+    "spread_rate_km_per_day": 210.0,
+    "direction_degrees": 200
+  },
+  "nearest_fire_distance_threshold_farmer": 100,
+  "nearest_fire_distance_threshold_floor": 75,
+  "vegetation_ndvi_anomaly": -2.4,
+  "vegetation_threshold_farmer": -1.5,
+  "vegetation_threshold_floor": -2.0,
+  "wind_speed_kmh": 65,
+  "wind_direction_degrees": 200,
+  "temperature_c": 42,
+  "humidity_percent": 8,
+  "gate_condition_met": true,
+  "gate_condition_reason": "Test scenario: fast-moving fire, very little time — forces ABANDON on most fields, hydration = ABANDON unsafe",
+  "multi_signal_convergence": true,
+  "next_update_minutes": 5,
+  "stage_transition_triggered": true
+}
