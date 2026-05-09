@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Allow importing from forecaster/
 sys.path.insert(0, str(Path(__file__).parent.parent / "forecaster"))
@@ -499,16 +499,10 @@ def get_crop_status():
 async def run_crop_agent():
     """Feed forecaster status into the crop agent and return field decisions."""
     import subprocess
-    from dotenv import dotenv_values
-
     if not STATUS_JSON.exists():
         raise HTTPException(status_code=404, detail="Run the forecaster first — no status.json found")
 
-    # Merge backend .env + crop_agent/.env into subprocess environment
     env = os.environ.copy()
-    crop_env_file = CROP_DIR / ".env"
-    if crop_env_file.exists():
-        env.update({k: v for k, v in dotenv_values(crop_env_file).items() if v})
 
     if not env.get("GROQ_API_KEY"):
         raise HTTPException(status_code=400, detail="GROQ_API_KEY not set — add it to crop_agent/.env")

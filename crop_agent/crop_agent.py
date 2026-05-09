@@ -21,11 +21,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from groq import Groq
 
+load_dotenv(Path(__file__).parent.parent / ".env")
+
 from usda_prices import fetch_live_prices
 from soil_water import fetch_field_water_data
 from landfire import fetch_field_flammability
 
-load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 GROQ_MODEL             = "llama-3.3-70b-versatile"
