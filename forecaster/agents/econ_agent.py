@@ -38,6 +38,32 @@ STATUS_JSON = OUTPUT_DIR / "status.json"
 REPO_ROOT = Path(__file__).parent.parent.parent
 CROP_AGENT_DIR = REPO_ROOT / "crop_agent"
 LIVESTOCK_ERPC_MSG = REPO_ROOT / "Livestock" / "erpc_message.json"
+FARM_FIELDS_JSON = CROP_AGENT_DIR / "farm_fields.json"
+
+
+def _valid_field_ids() -> set[str]:
+    """Return the set of field_ids actually entered by the farmer."""
+    try:
+        with open(FARM_FIELDS_JSON) as f:
+            data = json.load(f)
+        return {fld["field_id"] for fld in data.get("fields", [])}
+    except Exception:
+        return set()
+
+
+def _filter_to_valid_fields(data: dict, valid_ids: set[str]) -> dict:
+    """Strip any field_id not in valid_ids from all crop task lists."""
+    if not valid_ids:
+        return data
+    for key in ("task4", "task1", "task3"):
+        if isinstance(data.get(key), list):
+            data[key] = [r for r in data[key] if r.get("field_id") in valid_ids]
+    t2 = data.get("task2")
+    if isinstance(t2, dict) and "crop_destructions" in t2:
+        t2["crop_destructions"] = [
+            r for r in t2["crop_destructions"] if r.get("field_id") in valid_ids
+        ]
+    return data
 
 # ---------------------------------------------------------------------------
 # Hardcoded cost assumptions
@@ -63,37 +89,63 @@ HARDCODED_LIVESTOCK = {
     "evacuated_pct": 0.0,
 }
 
-MOCK_CROP_DATA = {
-    "task4": [
-        {"field_id": "F1", "crop_category": "wheat", "maturity_pct": 100, "fire_arrival_hours": 12.0, "decision": "HARVEST NOW", "reason": "Mature and can be harvested before fire arrival", "enters_task1": False},
-        {"field_id": "F2", "crop_category": "avocado", "maturity_pct": 100, "fire_arrival_hours": 11.52, "decision": "HARVEST NOW", "reason": "Mature and can be harvested before fire arrival, tree stays", "enters_task1": True},
-        {"field_id": "F3", "crop_category": "tomatoes", "maturity_pct": 50, "fire_arrival_hours": 12.48, "decision": "PARTIAL HARVEST", "reason": "Partially mature, salvage what is harvestable", "enters_task1": True},
-        {"field_id": "F4", "crop_category": "strawberries", "maturity_pct": 20, "fire_arrival_hours": 12.96, "decision": "TRANSPLANT", "reason": "Young and transplantable, farm has required equipment", "enters_task1": False},
-        {"field_id": "F5", "crop_category": "almonds", "maturity_pct": 10, "fire_arrival_hours": 13.44, "decision": "ABANDON", "reason": "Immature and not transplantable", "enters_task1": True},
-    ],
-    "task1": [
-        {"field_id": "F2", "flammability": 2, "fuel_load": 30, "wind_factor": 1.2, "priority_score": 36, "rank": 1, "action": "MONITOR", "uprooting_strategy": {"transplantable": False, "uproot_equipment": ["hydraulic tree spade", "flatbed truck", "crane"], "labor_hours_needed": 180, "method": "Mature avocados rarely survive transplanting.", "time_window": 11.52}, "feasible_with_farm_resources": False},
-        {"field_id": "F3", "flammability": 3, "fuel_load": 30, "wind_factor": 1.2, "priority_score": 36, "rank": 2, "action": "MONITOR", "uprooting_strategy": {"transplantable": True, "uproot_equipment": ["hand labor", "small tractor with plow"], "labor_hours_needed": 40, "method": "Young transplants move well with root ball.", "time_window": 12.48}, "feasible_with_farm_resources": True},
-        {"field_id": "F5", "flammability": 2, "fuel_load": 50, "wind_factor": 1.2, "priority_score": 60, "rank": 3, "action": "MONITOR", "uprooting_strategy": {"transplantable": False, "uproot_equipment": ["hydraulic tree spade", "crane", "flatbed truck"], "labor_hours_needed": 350, "method": "Mature almonds almost never survive transplanting.", "time_window": 13.44}, "feasible_with_farm_resources": False},
-    ],
-    "task2": {
-        "generated_at": "2026-05-08T10:00:00Z",
-        "threat_level": "CRITICAL",
-        "price_source": "USDA NASS",
-        "price_fetched_at": "2026-05-08T20:46:29Z",
-        "crop_destructions": [
-            {"field_id": "F5", "crop_category": "almonds", "size_acres": 25, "price_per_acre_usd": 8320.0, "usda_report_date": "2025-MARKETING YEAR", "estimated_loss_usd": 208000.0, "confidence_adjusted_loss_usd": 176800.0, "economic_impact_score": 59, "task4_decision": "ABANDON", "reason": "Immature and not transplantable"},
-            {"field_id": "F3", "crop_category": "tomatoes", "size_acres": 10, "price_per_acre_usd": 43520.0, "usda_report_date": "2025-DEC", "estimated_loss_usd": 435200.0, "confidence_adjusted_loss_usd": 369920.0, "economic_impact_score": 100, "task4_decision": "PARTIAL HARVEST", "reason": "Partially mature, salvage what is harvestable"},
-        ],
-        "total_estimated_loss_usd": 643200.0,
-        "total_confidence_adjusted_loss_usd": 546720.0,
-    },
-    "task3": [
-        {"field_id": "F2", "intensity_score": 18.8, "hours_to_arrival": 11.52, "technique": "WET FIREBREAK", "urgency": "IMMEDIATE", "reason": "Intensity score > 14 and hours to arrival <= 6"},
-        {"field_id": "F3", "intensity_score": 18.8, "hours_to_arrival": 12.48, "technique": "WET FIREBREAK", "urgency": "SCHEDULED", "reason": "Intensity score > 14 and hours to arrival <= 6"},
-        {"field_id": "F5", "intensity_score": 18.8, "hours_to_arrival": 13.44, "technique": "WET FIREBREAK", "urgency": "SCHEDULED", "reason": "Intensity score > 14 and hours to arrival <= 6"},
-    ],
-}
+def _build_fallback_crop_data() -> dict:
+    """Build minimal crop data from farm_fields.json when crop agent hasn't run yet.
+    Uses only what the farmer actually entered — no hardcoded field IDs or crop types."""
+    try:
+        with open(FARM_FIELDS_JSON) as f:
+            farm = json.load(f)
+        fields = farm.get("fields", [])
+    except Exception:
+        fields = []
+
+    task4, task1, task3, crop_destructions = [], [], [], []
+    for i, fld in enumerate(fields):
+        fid = fld["field_id"]
+        crop = fld.get("crop_category") or fld.get("crop", "unknown")
+        acres = float(fld.get("size_acres") or fld.get("acres") or 0)
+        hours = 24.0 + i * 2  # placeholder spread time, evenly spaced
+        task4.append({
+            "field_id": fid, "crop_category": crop,
+            "maturity_pct": 80, "fire_arrival_hours": hours,
+            "decision": "HARVEST NOW",
+            "reason": "Crop agent not yet run — defaulting to harvest recommendation",
+            "enters_task1": True,
+        })
+        task1.append({
+            "field_id": fid, "flammability": 2, "fuel_load": 30,
+            "wind_factor": 1.0, "priority_score": 30, "rank": i + 1,
+            "action": "MONITOR",
+            "uprooting_strategy": {"transplantable": False, "labor_hours_needed": 0,
+                                   "method": "Awaiting crop agent analysis.", "time_window": hours},
+            "feasible_with_farm_resources": False,
+        })
+        task3.append({
+            "field_id": fid, "intensity_score": 10.0,
+            "hours_to_arrival": hours, "technique": "DRIP IRRIGATION",
+            "urgency": "MONITOR", "reason": "Default — run full pipeline for live analysis",
+        })
+        crop_destructions.append({
+            "field_id": fid, "crop_category": crop, "size_acres": acres,
+            "price_per_acre_usd": 0.0, "usda_report_date": "pending",
+            "estimated_loss_usd": 0.0, "confidence_adjusted_loss_usd": 0.0,
+            "economic_impact_score": 0, "task4_decision": "HARVEST NOW",
+            "reason": "Price lookup pending — run full pipeline",
+        })
+
+    return {
+        "task4": task4,
+        "task1": task1,
+        "task2": {
+            "generated_at": "pending",
+            "threat_level": "UNKNOWN",
+            "price_source": "pending",
+            "crop_destructions": crop_destructions,
+            "total_estimated_loss_usd": 0.0,
+            "total_confidence_adjusted_loss_usd": 0.0,
+        },
+        "task3": task3,
+    }
 
 # ---------------------------------------------------------------------------
 # Live data loaders
@@ -121,12 +173,13 @@ def _load_crop_data() -> tuple[dict, str]:
             # Treat as live whenever the file parsed and has the expected schema —
             # an empty crop_destructions list is a valid "no crops at risk" answer.
             if isinstance(data["task2"], dict) and "crop_destructions" in data["task2"]:
+                data = _filter_to_valid_fields(data, _valid_field_ids())
                 logger.info("Loaded crop data from %s", candidates[0].name)
                 return data, "live"
         except Exception as e:
             logger.warning("Failed to load %s: %s", candidates[0].name, e)
-    logger.warning("No crop agent output found — using MOCK_CROP_DATA")
-    return MOCK_CROP_DATA, "mock"
+    logger.warning("No crop agent output found — building fallback from farm_fields.json")
+    return _build_fallback_crop_data(), "fallback"
 
 
 def _load_livestock_data() -> tuple[dict, str]:

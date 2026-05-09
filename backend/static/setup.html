@@ -211,7 +211,7 @@
 <script>
 const state = {
   step: 1,
-  farm_name: "", lat: 33.2232, lon: -117.1611, total_acres: 100,
+  farm_name: "", lat: null, lon: null, total_acres: 100,
   trailers: 2, vehicle_capacity: 100,
   pens: [], fields: [],
 };
@@ -259,11 +259,11 @@ function step1Html() {
     <div class="row-2">
       <div class="field-group">
         <label>Latitude</label>
-        <input type="number" id="f-lat" step="0.0001" value="${state.lat}" oninput="updateLatLon()" />
+        <input type="number" id="f-lat" step="0.0001" value="${state.lat ?? ''}" placeholder="Click map to set" oninput="updateLatLon()" />
       </div>
       <div class="field-group">
         <label>Longitude</label>
-        <input type="number" id="f-lon" step="0.0001" value="${state.lon}" oninput="updateLatLon()" />
+        <input type="number" id="f-lon" step="0.0001" value="${state.lon ?? ''}" placeholder="Click map to set" oninput="updateLatLon()" />
       </div>
     </div>
 
@@ -283,7 +283,10 @@ function step1Html() {
 
 function initMap() {
   if (mapInstance) { mapInstance.remove(); mapInstance = null; }
-  mapInstance = L.map("location-map", { zoomControl: true }).setView([state.lat, state.lon], 12);
+  // Default map center for Southern California — user must place the pin
+  const DEFAULT_CENTER = [33.5, -117.1];
+  const center = (state.lat != null && state.lon != null) ? [state.lat, state.lon] : DEFAULT_CENTER;
+  mapInstance = L.map("location-map", { zoomControl: true }).setView(center, 10);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     attribution: "© OpenStreetMap © CARTO", maxZoom: 18,
   }).addTo(mapInstance);
@@ -293,33 +296,64 @@ function initMap() {
     html: `<div style="width:14px;height:14px;border-radius:50%;background:#40916c;border:2px solid #fff;box-shadow:0 2px 8px rgba(45,106,79,0.5);"></div>`,
     iconSize: [14,14], iconAnchor: [7,7],
   });
-  markerInstance = L.marker([state.lat, state.lon], { icon, draggable: true }).addTo(mapInstance);
-  markerInstance.on("dragend", () => {
-    const ll = markerInstance.getLatLng();
-    state.lat = Math.round(ll.lat * 10000) / 10000;
-    state.lon = Math.round(ll.lng * 10000) / 10000;
-    document.getElementById("f-lat").value = state.lat;
-    document.getElementById("f-lon").value = state.lon;
-  });
+  // Only place marker if user has already pinned a location
+  if (state.lat != null && state.lon != null) {
+    markerInstance = L.marker([state.lat, state.lon], { icon, draggable: true }).addTo(mapInstance);
+  } else {
+    markerInstance = null;
+  }
+  function attachDragEnd() {
+    markerInstance.on("dragend", () => {
+      const ll = markerInstance.getLatLng();
+      state.lat = Math.round(ll.lat * 10000) / 10000;
+      state.lon = Math.round(ll.lng * 10000) / 10000;
+      document.getElementById("f-lat").value = state.lat;
+      document.getElementById("f-lon").value = state.lon;
+    });
+  }
+  if (markerInstance) attachDragEnd();
+
   mapInstance.on("click", e => {
     state.lat = Math.round(e.latlng.lat * 10000) / 10000;
     state.lon = Math.round(e.latlng.lng * 10000) / 10000;
-    markerInstance.setLatLng([state.lat, state.lon]);
+    if (!markerInstance) {
+      markerInstance = L.marker([state.lat, state.lon], { icon, draggable: true }).addTo(mapInstance);
+      attachDragEnd();
+    } else {
+      markerInstance.setLatLng([state.lat, state.lon]);
+    }
     document.getElementById("f-lat").value = state.lat;
     document.getElementById("f-lon").value = state.lon;
   });
 }
 
 function updateLatLon() {
-  state.lat = parseFloat(document.getElementById("f-lat").value) || state.lat;
-  state.lon = parseFloat(document.getElementById("f-lon").value) || state.lon;
-  if (markerInstance) markerInstance.setLatLng([state.lat, state.lon]);
-  if (mapInstance) mapInstance.setView([state.lat, state.lon]);
+  const rawLat = parseFloat(document.getElementById("f-lat").value);
+  const rawLon = parseFloat(document.getElementById("f-lon").value);
+  if (!isNaN(rawLat)) state.lat = rawLat;
+  if (!isNaN(rawLon)) state.lon = rawLon;
+  if (state.lat != null && state.lon != null) {
+    if (markerInstance) {
+      markerInstance.setLatLng([state.lat, state.lon]);
+    } else if (mapInstance) {
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="width:14px;height:14px;border-radius:50%;background:#40916c;border:2px solid #fff;box-shadow:0 2px 8px rgba(45,106,79,0.5);"></div>`,
+        iconSize: [14,14], iconAnchor: [7,7],
+      });
+      markerInstance = L.marker([state.lat, state.lon], { icon, draggable: true }).addTo(mapInstance);
+    }
+    if (mapInstance) mapInstance.setView([state.lat, state.lon]);
+  }
 }
 
 function goNext1() {
   state.farm_name = document.getElementById("f-name").value.trim() || "My Farm";
   state.total_acres = parseFloat(document.getElementById("f-acres").value) || 100;
+  if (state.lat == null || state.lon == null) {
+    alert("Please click on the map to pin your farm location before continuing.");
+    return;
+  }
   state.step = 2;
   if (state.pens.length === 0) state.pens.push({ species:"cattle", count:50, age:"adult", health:"healthy", name:"" });
   render();

@@ -108,91 +108,44 @@ def _convergence_met(fwi: float, distance_km: float | None, ndvi: float) -> bool
 
 
 def evaluate_gate_condition(fwi: float, fire: dict | None, ndvi: float, farm_config: dict) -> dict:
-    """Evaluate multi-signal gate condition and return assessment dict."""
-    thresholds = farm_config["custom_thresholds"]
+    """Threat level is driven solely by fire distance. FWI and NDVI are recorded
+    as context but do not escalate the threat level."""
     floor = farm_config["hard_safety_floor"]
 
     distance_km = fire["distance_km"] if fire else None
 
-    fwi_level = _fwi_threat(fwi)
-    fire_level = _fire_distance_threat(distance_km)
-    ndvi_level = _ndvi_threat(ndvi)
+    # Distance-only threat
+    combined = _fire_distance_threat(distance_km)
 
-    # Count flagged signals (WARNING or above)
-    flagged = sum(1 for lvl in [fwi_level, fire_level, ndvi_level] if _threat_index(lvl) >= _threat_index("WARNING"))
-    convergence = _convergence_met(fwi, distance_km, ndvi)
-
-    combined = _max_threat(fwi_level, fire_level, ndvi_level)
-
-    # Escalate when all three convergence conditions met (PRD §4.4)
-    if convergence:
-        combined = _escalate(combined)
-
-    # Hard safety floors
-    # Fire proximity floor: any fire within the hard floor distance → CRITICAL no matter what
-    # FWI floor alone: only CRITICAL if FWI is truly extreme (≥20) or fire is also within 300 km;
-    #                  otherwise caps at WARNING so a far-away fire doesn't falsely alarm CRITICAL
-    hard_floor_hit = False
-    fire_floor_hit = distance_km is not None and distance_km <= floor["fire_distance_km"]
-    fwi_floor_hit  = fwi >= floor["fwi_trigger"]
-
-    if fire_floor_hit:
+    # Hard floor: fire within hard-floor distance always forces CRITICAL
+    hard_floor_hit = distance_km is not None and distance_km <= floor["fire_distance_km"]
+    if hard_floor_hit:
         combined = _max_threat(combined, "CRITICAL")
-        hard_floor_hit = True
-    elif fwi_floor_hit:
-        hard_floor_hit = True
-        if fwi >= 20 or (distance_km is not None and distance_km <= 300):
-            # Truly extreme weather OR fire within 300 km — escalate to CRITICAL
-            combined = _max_threat(combined, "CRITICAL")
-        else:
-            # Dangerous weather but fire is far — cap at WARNING (not CRITICAL)
-            combined = _max_threat(combined, "WARNING")
 
-    # Farmer custom thresholds: gate condition is met at WARNING or above
+    # Gate met at WARNING or above
     gate_met = _threat_index(combined) >= _threat_index("WARNING")
 
-    # Build reason string
-    reasons = []
-    if fwi >= floor["fwi_trigger"]:
-        reasons.append(f"FWI {fwi} hits hard safety floor ({floor['fwi_trigger']})")
-    elif fwi >= thresholds["fwi_trigger"]:
-        reasons.append(f"FWI {fwi} exceeds farmer threshold ({thresholds['fwi_trigger']})")
+    # Reason string (distance only)
+    if distance_km is None:
+        reason = "no active fires detected"
+    elif hard_floor_hit:
+        reason = f"fire {distance_km:.1f} km away — within hard floor ({floor['fire_distance_km']} km) → CRITICAL"
     else:
-        reasons.append(f"FWI {fwi} below farmer threshold")
+        reason = f"fire {distance_km:.1f} km away · FWI {fwi:.1f} (context only)"
 
-    if distance_km is not None:
-        if distance_km <= floor["fire_distance_km"]:
-            reasons.append(f"fire at {distance_km} km hits hard floor ({floor['fire_distance_km']} km)")
-        elif distance_km <= thresholds["fire_distance_km"]:
-            reasons.append(f"fire at {distance_km} km within farmer threshold ({thresholds['fire_distance_km']} km)")
-        else:
-            reasons.append(f"fire at {distance_km} km beyond farmer threshold")
-    else:
-        reasons.append("no active fires detected")
-
-    veg_threshold = thresholds["vegetation_stress_sigma"]
-    if ndvi <= -2.0:
-        reasons.append(f"vegetation critically stressed (NDVI anomaly {ndvi})")
-    elif ndvi <= veg_threshold:
-        reasons.append(f"vegetation stressed beyond farmer threshold (NDVI anomaly {ndvi})")
-    else:
-        reasons.append(f"vegetation stress acceptable (NDVI anomaly {ndvi})")
-
-    if convergence:
-        reasons.append("multi-signal convergence detected")
-
-    # Confidence: simple heuristic based on how far thresholds are exceeded
-    confidence = min(0.99, 0.5 + 0.1 * _threat_index(combined) + (0.05 if convergence else 0))
+    confidence = min(0.99, 0.5 + 0.1 * _threat_index(combined))
+    convergence = False
+    flagged = 1 if distance_km is not None and _threat_index(combined) >= _threat_index("WARNING") else 0
 
     return {
         "threat_level": combined,
         "threat_confidence": round(confidence, 2),
         "gate_condition_met": gate_met,
-        "gate_condition_reason": "; ".join(reasons),
+        "gate_condition_reason": reason,
         "hard_floor_hit": hard_floor_hit,
         "convergence": convergence,
         "flagged_signals": flagged,
-        "component_levels": {"fwi": fwi_level, "fire": fire_level, "ndvi": ndvi_level},
+        "component_levels": {"fire_distance_km": distance_km},
     }
 
 

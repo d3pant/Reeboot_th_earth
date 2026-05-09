@@ -374,9 +374,10 @@ async function loadAll() {
 
     if (eRes.ok)    econData   = await eRes.json();
     if (pRes.ok)    policyData = await pRes.json();
+    let statusData = null;
     if (sRes.ok) {
-      const s = await sRes.json();
-      const lvl = s.threat_level || 'WARNING';
+      statusData = await sRes.json();
+      const lvl = statusData.threat_level || 'WARNING';
       document.getElementById('hdr-threat').textContent = lvl + ' Threat';
       applyThreatColor(lvl);
     }
@@ -388,6 +389,17 @@ async function loadAll() {
       document.getElementById('farm-pens-hdr').textContent = penCount + (penCount === 1 ? ' pen' : ' pens');
     }
 
+    const isGreen = !statusData?.gate_condition_met || statusData?.threat_level === 'GREEN';
+    if (isGreen) {
+      const allClearHtml = `<div style="text-align:center;padding:64px 24px;">
+        <div style="font-size:48px;margin-bottom:12px;">✅</div>
+        <div style="font-size:18px;font-weight:600;color:#2d6a4f;margin-bottom:6px;">All Clear — No Financial Risk</div>
+        <div style="font-size:14px;color:#6b7280;">No active fire threat. Financial agents are on standby and will activate when conditions change.</div>
+      </div>`;
+      document.getElementById('econ-section')   && (document.getElementById('econ-section').innerHTML   = allClearHtml);
+      document.getElementById('policy-section') && (document.getElementById('policy-section').innerHTML = allClearHtml);
+      return;
+    }
     if (econData)   renderEcon();
     if (policyData) renderPolicy();
 

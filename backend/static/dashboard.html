@@ -641,6 +641,17 @@ async function loadAll() {
   renderLivestockPanel();
 }
 
+function isAllClear() {
+  return forecastData?.gate_condition_met === false || forecastData?.threat_level === "GREEN";
+}
+
+const ALL_CLEAR_HTML = `
+  <div style="text-align:center;padding:48px 24px;">
+    <div style="font-size:48px;margin-bottom:12px;">✅</div>
+    <div style="font-size:18px;font-weight:600;color:#2d6a4f;margin-bottom:6px;">All Clear — No Action Needed</div>
+    <div style="font-size:14px;color:#6b7280;">No active fire threat near your farm. Agents are on standby and will activate automatically when conditions change.</div>
+  </div>`;
+
 function renderAll() {
   renderHeader();
   renderStatCards();
@@ -1055,6 +1066,7 @@ const URG_STROKE = { IMMEDIATE: "#c0392b", HIGH: "#e67e22", SCHEDULED: "#2980b9"
 // ── Actions (Best Actions Right Now) ──
 function renderActions() {
   const el = document.getElementById("actions-list");
+  if (isAllClear()) { el.innerHTML = ALL_CLEAR_HTML; return; }
   let actions = [];
   let totalSavings = 0;
 
@@ -1147,6 +1159,7 @@ function renderActions() {
 function renderRiskBreakdown() {
   const el = document.getElementById("risk-breakdown");
   if (!forecastData) { el.innerHTML = '<div class="loading">Run forecaster first</div>'; return; }
+  if (isAllClear()) { el.innerHTML = ALL_CLEAR_HTML; return; }
 
   const exp = econData?.financial_exposure || {};
   const animalVal   = exp.livestock_at_risk_usd  || livestockData?.animals_at_risk_usd || 0;
@@ -1213,9 +1226,12 @@ async function runForecaster() {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 120000);
   try {
-    const farmLat = farmProfile?.centroid?.lat ?? forecastData?.farm_lat ?? 33.2232;
-    const farmLon = farmProfile?.centroid?.lon ?? forecastData?.farm_lon ?? -117.1611;
-    const res = await fetch(`/api/run-forecaster?lat=${farmLat}&lon=${farmLon}`, { method: "POST", signal: ctrl.signal });
+    const farmLat = farmProfile?.centroid?.lat ?? forecastData?.farm_lat;
+    const farmLon = farmProfile?.centroid?.lon ?? forecastData?.farm_lon;
+    const url = (farmLat != null && farmLon != null)
+      ? `/api/run-forecaster?lat=${farmLat}&lon=${farmLon}`
+      : `/api/run-forecaster`;
+    const res = await fetch(url, { method: "POST", signal: ctrl.signal });
     if (!res.ok) { alert("Forecaster error: " + (await res.json()).detail); return; }
     forecastData = await res.json();
     renderAll();
@@ -1272,6 +1288,7 @@ if (name === "overview")  setTimeout(() => map.invalidateSize(), 50);
 // ── Crop Panel ──
 function renderCropPanel() {
   const el = document.getElementById("crop-fields-list");
+  if (isAllClear()) { el.innerHTML = ALL_CLEAR_HTML; return; }
   const fields = cropData?.field_decisions || [];
   if (!fields.length) {
     el.innerHTML = '<div class="loading" style="padding:20px 0;">Run the forecaster then click <b>🌾 Run Crop Agent</b> below to generate field decisions.</div>';
@@ -1394,6 +1411,7 @@ function renderCropPanel() {
 // ── Livestock Panel ──
 function renderLivestockPanel() {
   const el = document.getElementById("livestock-pens-list");
+  if (isAllClear()) { el.innerHTML = ALL_CLEAR_HTML; return; }
   const pens = livestockData?.pens || [];
   const profilePens = farmProfile?.pens || [];
 
@@ -1508,9 +1526,12 @@ async function refreshAll() {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 240000);
   try {
-    const farmLat = farmProfile?.centroid?.lat ?? forecastData?.farm_lat ?? 33.2232;
-    const farmLon = farmProfile?.centroid?.lon ?? forecastData?.farm_lon ?? -117.1611;
-    const res = await fetch(`/api/run-pipeline?lat=${farmLat}&lon=${farmLon}`, { method: "POST", signal: ctrl.signal });
+    const farmLat = farmProfile?.centroid?.lat ?? forecastData?.farm_lat;
+    const farmLon = farmProfile?.centroid?.lon ?? forecastData?.farm_lon;
+    const pipeUrl = (farmLat != null && farmLon != null)
+      ? `/api/run-pipeline?lat=${farmLat}&lon=${farmLon}`
+      : `/api/run-pipeline`;
+    const res = await fetch(pipeUrl, { method: "POST", signal: ctrl.signal });
     if (!res.ok) {
       let detail = "";
       try { detail = (await res.json()).detail || ""; } catch (_) {}

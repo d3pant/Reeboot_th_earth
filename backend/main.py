@@ -237,9 +237,15 @@ async def get_impact(
 # Farm endpoints
 # ---------------------------------------------------------------------------
 
-FARM_LAT = 33.2232
-FARM_LON = -117.1611
 FORECASTER_DIR = Path(__file__).parent.parent / "forecaster"
+
+def _farm_lat_lon() -> tuple[float, float]:
+    """Read lat/lon from farm_config.json written by setup. No hardcoded fallback."""
+    cfg_path = FORECASTER_DIR / "config" / "farm_config.json"
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    loc = cfg.get("location", {})
+    return loc["lat"], loc["lon"]
 STATUS_JSON     = FORECASTER_DIR / "output" / "status.json"
 
 
@@ -398,13 +404,55 @@ def get_status():
     return JSONResponse(data)
 
 
+def _filter_econ_to_farm(data: dict) -> dict:
+    """Strip field_ids/crops from econ report that aren't in current farm_fields.json,
+    and correct crop_category names to match what the farmer actually entered."""
+    try:
+        farm_fields_path = Path(__file__).parent.parent / "crop_agent" / "farm_fields.json"
+        with open(farm_fields_path) as f:
+            farm = json.load(f)
+        fields = farm.get("fields", [])
+        valid_ids = {fld["field_id"] for fld in fields}
+        # Map field_id → actual crop the farmer entered
+        id_to_crop = {
+            fld["field_id"]: (fld.get("crop_category") or fld.get("crop", ""))
+            for fld in fields
+        }
+        valid_crops = set(id_to_crop.values())
+    except Exception:
+        return data
+
+    fe = data.get("financial_exposure", {})
+    if "breakdown_by_crop" in fe:
+        fe["breakdown_by_crop"] = {k: v for k, v in fe["breakdown_by_crop"].items() if k in valid_crops}
+
+    filtered_queue = []
+    for a in data.get("action_queue", []):
+        fid = a.get("field_id")
+        if fid is None:
+            filtered_queue.append(a)
+        elif fid in valid_ids:
+            # Correct stale crop name to farmer's actual crop
+            a["crop_category"] = id_to_crop.get(fid, a.get("crop_category"))
+            # Fix action_description to use correct crop name
+            old_desc = a.get("action_description", "")
+            for bad_crop in ["potatoes", "wheat", "tomatoes", "strawberries", "almonds", "citrus"]:
+                if bad_crop in old_desc and id_to_crop.get(fid, bad_crop) != bad_crop:
+                    a["action_description"] = old_desc.replace(bad_crop, id_to_crop[fid])
+                    break
+            filtered_queue.append(a)
+    data["action_queue"] = filtered_queue
+    return data
+
+
 @app.get("/api/econ")
 def get_econ_report():
     econ_path = FORECASTER_DIR / "output" / "econ_report.json"
     if not econ_path.exists():
         raise HTTPException(status_code=404, detail="No econ report yet — run forecaster first")
     with open(econ_path) as f:
-        return JSONResponse(json.load(f))
+        data = json.load(f)
+    return JSONResponse(_filter_econ_to_farm(data))
 
 
 @app.get("/api/policy")
@@ -433,8 +481,10 @@ async def _run_forecaster_cycle(
     Writes status.json and returns the status dict."""
     import math
 
-    farm_lat = lat if lat is not None else FARM_LAT
-    farm_lon = lon if lon is not None else FARM_LON
+    if lat is None or lon is None:
+        lat, lon = _farm_lat_lon()
+    farm_lat = lat
+    farm_lon = lon
 
     farm_config_path = FORECASTER_DIR / "config" / "farm_config.json"
     with open(farm_config_path) as f:
@@ -609,6 +659,38 @@ def _run_econ_subprocess() -> Optional[dict]:
         except Exception:
             return None
     return None
+
+
+POLICY_REPORT = FORECASTER_DIR / "output" / "policy_report.json"
+
+
+def _run_policy_subprocess() -> Optional[dict]:
+    """Run policy agent and return policy_report.json contents (or None on failure)."""
+    import subprocess
+    try:
+        subprocess.run(
+            ["python3", "-m", "forecaster.agents.policy_agent"],
+            cwd=Path(__file__).parent.parent,
+            capture_output=True, text=True, timeout=60,
+        )
+    except Exception:
+        pass
+    if POLICY_REPORT.exists():
+        try:
+            with open(POLICY_REPORT) as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+
+@app.post("/api/policy/run")
+def run_policy_agent():
+    """Run the policy agent and return the report."""
+    result = _run_policy_subprocess()
+    if not result:
+        raise HTTPException(status_code=500, detail="Policy agent failed or produced no output")
+    return JSONResponse(result)
 
 
 INSURANCE_PDF = FORECASTER_DIR / "output" / "ccc_576_filled.pdf"
@@ -1192,6 +1274,7 @@ async def run_pipeline(
         livestock_result = {"error": str(livestock_result)}
 
     econ_result = _run_econ_subprocess()
+    policy_result = _run_policy_subprocess()
     insurance_result = _run_insurance_subprocess()
     report_result = _run_report_subprocess("en")
 
@@ -1200,6 +1283,7 @@ async def run_pipeline(
         "crop": crop_result,
         "livestock": livestock_result,
         "econ": econ_result,
+        "policy": policy_result,
         "insurance": insurance_result,
         "report": report_result,
         "data_sources": (econ_result or {}).get("data_sources"),
