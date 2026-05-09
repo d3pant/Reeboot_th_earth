@@ -113,8 +113,8 @@ def compute_ellipse(
     # Ellipse centre is offset from the fire origin toward the head
     offset_km = (head_km - back_km) / 2
 
-    # Convert offset to lat/lon delta (offset is in wind direction)
-    spread_bearing_deg = wind_direction_deg  # fire moves downwind
+    # Fire spreads downwind — opposite of meteorological wind origin direction
+    spread_bearing_deg = (wind_direction_deg + 180) % 360
     bearing_rad = math.radians(spread_bearing_deg)
     dlat = (offset_km / 111.0) * math.cos(bearing_rad)
     dlon = (offset_km / (111.0 * math.cos(math.radians(fire_lat)))) * math.sin(bearing_rad)
@@ -137,9 +137,10 @@ def ellipse_to_geojson_polygon(e: SpreadEllipse, n_points: int = 64) -> dict:
     The ellipse is rotated so its major axis aligns with the wind direction.
     """
     coords = []
-    # Wind direction in standard math convention (CCW from East)
-    # Meteorological wind direction: 0=N, 90=E → convert to math angle
-    math_angle_rad = math.radians(90 - e.wind_direction_deg)
+    # Fire spreads downwind (away from wind source). Meteorological wind dir is
+    # where wind comes FROM, so spread direction = wind_direction + 180.
+    spread_deg = (e.wind_direction_deg + 180) % 360
+    math_angle_rad = math.radians(90 - spread_deg)
 
     cos_a = math.cos(math_angle_rad)
     sin_a = math.sin(math_angle_rad)

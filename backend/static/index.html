@@ -14,7 +14,7 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
       background: rgba(10,10,10,0.92); backdrop-filter: blur(12px);
       padding: 0 20px; height: 52px;
-      display: flex; align-items: center; gap: 14px;
+      display: flex; align-items: center; gap: 10px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     #header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.03em; color: #fff; }
@@ -26,10 +26,17 @@
     #refresh-btn {
       margin-left: auto; font-size: 12px; background: transparent;
       border: 1px solid rgba(255,255,255,0.12); color: #aaa;
-      padding: 5px 14px; border-radius: 6px; cursor: pointer;
-      transition: all 0.15s;
+      padding: 5px 14px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
     }
     #refresh-btn:hover { background: rgba(255,255,255,0.06); color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    #pick-btn {
+      font-size: 12px; background: transparent;
+      border: 1px solid rgba(255,255,255,0.12); color: #aaa;
+      padding: 5px 14px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
+    }
+    #pick-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    #pick-btn.active { background: rgba(0,150,255,0.15); border-color: rgba(0,150,255,0.5); color: #4af; }
 
     #forecaster-btn {
       font-size: 12px; background: rgba(192,57,43,0.2);
@@ -50,12 +57,19 @@
     #farm-status.CRITICAL { background: rgba(200,0,0,0.2);   color: #ff3333; border: 1px solid rgba(200,0,0,0.3); }
     #farm-status.EMERGENCY{ background: rgba(180,0,180,0.2); color: #ff44ff; border: 1px solid rgba(180,0,180,0.3); }
 
+    #fwi-badge {
+      font-size: 11px; padding: 3px 9px; border-radius: 20px; display: none;
+      font-weight: 600; letter-spacing: 0.03em;
+      background: rgba(255,255,255,0.07); color: #aaa; border: 1px solid rgba(255,255,255,0.1);
+    }
+
     /* ── Map ── */
     #map {
       position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
       transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
     }
     #map.panel-open { right: 380px; }
+    #map.pick-mode { cursor: crosshair !important; }
 
     /* ── Detail Panel ── */
     #panel {
@@ -67,10 +81,9 @@
     #panel.open { right: 0; }
 
     #panel-header {
-      padding: 20px 20px 0;
+      padding: 20px 20px 16px;
       display: flex; align-items: flex-start; justify-content: space-between;
       position: sticky; top: 0; background: #111; z-index: 1;
-      padding-bottom: 16px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     #panel-title { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -82,26 +95,17 @@
     }
     #panel-close:hover { background: rgba(255,255,255,0.14); color: #fff; }
 
-    /* Intensity badge */
-    #intensity-badge {
-      display: inline-flex; align-items: center; gap: 7px;
-      padding: 20px 20px 0;
-    }
-    .badge {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; padding: 4px 12px; border-radius: 20px;
-    }
+    #intensity-badge { display: inline-flex; align-items: center; gap: 7px; padding: 20px 20px 0; }
+    .badge { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; }
     .badge.extreme { background: rgba(255,34,0,0.2); color: #ff5533; border: 1px solid rgba(255,34,0,0.3); }
     .badge.high    { background: rgba(255,102,0,0.2); color: #ff8833; border: 1px solid rgba(255,102,0,0.3); }
     .badge.moderate{ background: rgba(255,170,0,0.2); color: #ffcc44; border: 1px solid rgba(255,170,0,0.3); }
     .badge.low     { background: rgba(255,220,100,0.15); color: #ffdd88; border: 1px solid rgba(255,220,100,0.2); }
 
-    /* FRP hero number */
     #frp-hero { padding: 14px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
     #frp-value { font-size: 42px; font-weight: 700; letter-spacing: -0.02em; color: #fff; line-height: 1; }
     #frp-label { font-size: 11px; color: #555; margin-top: 4px; letter-spacing: 0.06em; text-transform: uppercase; }
 
-    /* Sections */
     .section { padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
     .section-title { font-size: 10px; font-weight: 700; color: #444; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
 
@@ -112,21 +116,17 @@
     .meta-value { font-size: 13px; color: #ccc; font-weight: 500; }
     .meta-value.highlight { color: #fff; font-weight: 600; }
 
-    /* Confidence bar */
     .conf-bar { display: flex; gap: 4px; margin-top: 4px; }
     .conf-pip { height: 4px; flex: 1; border-radius: 2px; background: rgba(255,255,255,0.08); }
     .conf-pip.active.low      { background: #ffdd88; }
     .conf-pip.active.nominal  { background: #ffaa00; }
     .conf-pip.active.high     { background: #00cc66; }
 
-    /* Brightness bar */
     .bright-bar-wrap { margin-top: 6px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
     .bright-bar { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #ff6600, #ff2200); }
 
-    /* Coords */
     .coords { font-size: 12px; color: #888; font-variant-numeric: tabular-nums; font-family: 'SF Mono', monospace; }
 
-    /* Daynight pill */
     .day-pill   { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: rgba(255,220,50,0.15); color: #ffdd44; border: 1px solid rgba(255,220,50,0.2); }
     .night-pill { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: rgba(100,120,255,0.15); color: #8899ff; border: 1px solid rgba(100,120,255,0.2); }
 
@@ -136,19 +136,26 @@
       background: rgba(10,10,10,0.88); backdrop-filter: blur(8px);
       border: 1px solid rgba(255,255,255,0.07); border-radius: 10px;
       padding: 12px 16px; font-size: 12px;
-      transition: left 0.3s cubic-bezier(0.4,0,0.2,1);
     }
     #legend h4 { font-size: 10px; color: #444; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
     .leg-row { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; color: #888; }
     .leg-row:last-child { margin-bottom: 0; }
     .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
+    /* Pick-mode hint */
+    #pick-hint {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 1001; display: none;
+      background: rgba(0,150,255,0.15); border: 1px solid rgba(0,150,255,0.4);
+      color: #4af; font-size: 12px; padding: 8px 18px; border-radius: 20px;
+      backdrop-filter: blur(8px); pointer-events: none;
+    }
+
     .spread-tooltip {
       background: rgba(10,10,10,0.88); border: 1px solid rgba(255,255,255,0.1);
       color: #ccc; font-size: 11px; padding: 3px 8px; border-radius: 4px;
     }
 
-    /* Leaflet overrides */
     .leaflet-control-zoom { border: none !important; }
     .leaflet-control-zoom a { background: rgba(10,10,10,0.88) !important; color: #aaa !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 6px !important; margin-bottom: 4px !important; }
     .leaflet-control-zoom a:hover { color: #fff !important; background: rgba(40,40,40,0.95) !important; }
@@ -161,11 +168,14 @@
   <div id="fire-count">—</div>
   <div id="status">Loading...</div>
   <button id="refresh-btn" onclick="loadFires()">↻ Refresh</button>
+  <button id="pick-btn" onclick="togglePickMode()">📍 Set Location</button>
   <button id="forecaster-btn" onclick="runForecaster()">⚡ Run Forecaster</button>
   <div id="farm-status"></div>
+  <div id="fwi-badge"></div>
 </div>
 
 <div id="map"></div>
+<div id="pick-hint">Click anywhere on the map to set your location</div>
 
 <!-- Detail Panel -->
 <div id="panel">
@@ -266,20 +276,18 @@
   <div class="leg-row"><div class="dot" style="background:#ff6600"></div> High 50–100 MW</div>
   <div class="leg-row"><div class="dot" style="background:#ffaa00"></div> Moderate 10–50 MW</div>
   <div class="leg-row"><div class="dot" style="background:#ffdd88"></div> Low &lt; 10 MW</div>
+  <div class="leg-row"><div class="dot" style="background:#00cc55;border:1px solid #fff"></div> Your location</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   const map = L.map("map", { zoomControl: true }).setView([37.0, -119.5], 6);
-
-  // Hard-restrict panning to California
   const CA_BOUNDS = L.latLngBounds([32.0, -125.0], [42.5, -113.5]);
   map.setMaxBounds(CA_BOUNDS);
   map.options.minZoom = 6;
 
   L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    attribution: '© OpenStreetMap © CARTO',
-    maxZoom: 18,
+    attribution: '© OpenStreetMap © CARTO', maxZoom: 18,
   }).addTo(map);
 
   const COLORS = { extreme: "#ff2200", high: "#ff6600", moderate: "#ffaa00", low: "#ffdd88" };
@@ -288,76 +296,46 @@
   let markersLayer = L.layerGroup().addTo(map);
   let activeMarker = null;
 
-  function openPanel(props) {
-    const p = props;
+  // ── Location state ──
+  const DEFAULT_LAT = 33.2232, DEFAULT_LON = -117.1611;
+  let farmLat = DEFAULT_LAT, farmLon = DEFAULT_LON;
+  let pickMode = false;
 
-    // Intensity badge
-    document.getElementById("intensity-badge").innerHTML =
-      `<span class="badge ${p.intensity}">${p.intensity.toUpperCase()}</span>`;
-
-    // FRP hero
-    document.getElementById("frp-value").textContent = p.frp.toFixed(2);
-
-    // Detection
-    document.getElementById("p-detected").textContent = p.detected_at;
-    document.getElementById("p-satellite").textContent = p.satellite;
-    document.getElementById("p-instrument").textContent = p.instrument;
-    document.getElementById("p-version").textContent = p.version || "—";
-
-    const dn = p.daynight;
-    document.getElementById("p-daynight").innerHTML =
-      dn === "Day"
-        ? `<span class="day-pill">☀ Day</span>`
-        : `<span class="night-pill">☾ Night</span>`;
-
-    // Confidence
-    document.getElementById("p-confidence-label").textContent = p.confidence;
-    const confRaw = p.confidence_raw;
-    const levels = { l: 1, n: 2, h: 3 };
-    const filled = levels[confRaw] || 0;
-    const cls = confRaw === "h" ? "high" : confRaw === "n" ? "nominal" : "low";
-    for (let i = 1; i <= 3; i++) {
-      const pip = document.getElementById(`conf-${i}`);
-      pip.className = "conf-pip" + (i <= filled ? ` active ${cls}` : "");
-    }
-
-    // Thermal
-    document.getElementById("p-ti4").textContent = `${p.bright_ti4.toFixed(1)} K`;
-    document.getElementById("p-ti5").textContent = `${p.bright_ti5.toFixed(1)} K`;
-    // Scale: 270K (cold) → 420K (extreme fire)
-    const scale = (k) => Math.min(100, Math.max(0, ((k - 270) / 150) * 100));
-    document.getElementById("p-ti4-bar").style.width = scale(p.bright_ti4) + "%";
-    document.getElementById("p-ti5-bar").style.width = scale(p.bright_ti5) + "%";
-
-    // Pixel geometry
-    document.getElementById("p-scan").textContent = p.scan.toFixed(2);
-    document.getElementById("p-track").textContent = p.track.toFixed(2);
-
-    // Location
-    document.getElementById("p-coords").textContent =
-      `${p.lat.toFixed(5)}°N, ${Math.abs(p.lon).toFixed(5)}°W`;
-
-    document.getElementById("panel").classList.add("open");
-    document.getElementById("map").classList.add("panel-open");
-    setTimeout(() => map.invalidateSize(), 310);
-
-    // Fetch + draw spread ellipses
-    loadSpread(props);
+  function makeFarmIcon(color) {
+    return L.divIcon({
+      className: "",
+      html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 8px ${color}aa;"></div>`,
+      iconSize: [14, 14], iconAnchor: [7, 7],
+    });
   }
 
-  function closePanel() {
-    document.getElementById("panel").classList.remove("open");
-    document.getElementById("map").classList.remove("panel-open");
-    if (activeMarker) {
-      activeMarker.setStyle({ weight: 0.5, color: "#000" });
-      activeMarker = null;
-    }
-    spreadLayer.clearLayers();
-    setTimeout(() => map.invalidateSize(), 310);
+  const farmMarker = L.marker([farmLat, farmLon], { icon: makeFarmIcon("#00cc55"), draggable: true })
+    .addTo(map)
+    .bindTooltip("Your location — drag to move", { permanent: false, direction: "top" });
+
+  farmMarker.on("dragend", () => {
+    const ll = farmMarker.getLatLng();
+    farmLat = ll.lat; farmLon = ll.lng;
+  });
+
+  // ── Pick mode ──
+  function togglePickMode() {
+    pickMode = !pickMode;
+    document.getElementById("pick-btn").classList.toggle("active", pickMode);
+    document.getElementById("map").classList.toggle("pick-mode", pickMode);
+    document.getElementById("pick-hint").style.display = pickMode ? "block" : "none";
   }
 
-  // ── Spread ellipses ──
-  const spreadLayer = L.layerGroup().addTo(map);
+  map.on("click", (e) => {
+    if (!pickMode) return;
+    farmLat = e.latlng.lat; farmLon = e.latlng.lng;
+    farmMarker.setLatLng([farmLat, farmLon]);
+    togglePickMode(); // exit pick mode after placing
+  });
+
+  // ── Spread layers ──
+  const spreadLayer    = L.layerGroup().addTo(map);
+  const farmSpreadLayer = L.layerGroup().addTo(map);
 
   const ELLIPSE_STYLE = {
     6:  { color: "#ff9900", fillColor: "#ff9900", fillOpacity: 0.08, weight: 1.5, dashArray: "4 4" },
@@ -365,48 +343,90 @@
     24: { color: "#ff2200", fillColor: "#ff2200", fillOpacity: 0.04, weight: 1.5, dashArray: "4 4" },
   };
 
-  const SPREAD_LABELS = { 6: "6h", 12: "12h", 24: "24h" };
+  function _windCardinal(deg) {
+    return ["N","NE","E","SE","S","SW","W","NW"][Math.round(deg / 45) % 8];
+  }
+
+  // ── Panel ──
+  function openPanel(props) {
+    document.getElementById("intensity-badge").innerHTML =
+      `<span class="badge ${props.intensity}">${props.intensity.toUpperCase()}</span>`;
+    document.getElementById("frp-value").textContent = props.frp.toFixed(2);
+    document.getElementById("p-detected").textContent = props.detected_at;
+    document.getElementById("p-satellite").textContent = props.satellite;
+    document.getElementById("p-instrument").textContent = props.instrument;
+    document.getElementById("p-version").textContent = props.version || "—";
+    document.getElementById("p-daynight").innerHTML =
+      props.daynight === "Day"
+        ? `<span class="day-pill">☀ Day</span>`
+        : `<span class="night-pill">☾ Night</span>`;
+    document.getElementById("p-confidence-label").textContent = props.confidence;
+    const levels = { l: 1, n: 2, h: 3 };
+    const filled = levels[props.confidence_raw] || 0;
+    const cls = props.confidence_raw === "h" ? "high" : props.confidence_raw === "n" ? "nominal" : "low";
+    for (let i = 1; i <= 3; i++) {
+      document.getElementById(`conf-${i}`).className = "conf-pip" + (i <= filled ? ` active ${cls}` : "");
+    }
+    document.getElementById("p-ti4").textContent = `${props.bright_ti4.toFixed(1)} K`;
+    document.getElementById("p-ti5").textContent = `${props.bright_ti5.toFixed(1)} K`;
+    const scale = k => Math.min(100, Math.max(0, ((k - 270) / 150) * 100));
+    document.getElementById("p-ti4-bar").style.width = scale(props.bright_ti4) + "%";
+    document.getElementById("p-ti5-bar").style.width = scale(props.bright_ti5) + "%";
+    document.getElementById("p-scan").textContent = props.scan.toFixed(2);
+    document.getElementById("p-track").textContent = props.track.toFixed(2);
+    document.getElementById("p-coords").textContent =
+      `${props.lat.toFixed(5)}°N, ${Math.abs(props.lon).toFixed(5)}°W`;
+
+    document.getElementById("panel").classList.add("open");
+    document.getElementById("map").classList.add("panel-open");
+    setTimeout(() => map.invalidateSize(), 310);
+    loadSpread(props);
+  }
+
+  function closePanel() {
+    document.getElementById("panel").classList.remove("open");
+    document.getElementById("map").classList.remove("panel-open");
+    if (activeMarker) { activeMarker.setStyle({ weight: 0.5, color: "#000" }); activeMarker = null; }
+    spreadLayer.clearLayers();
+    setTimeout(() => map.invalidateSize(), 310);
+  }
 
   async function loadSpread(props) {
     spreadLayer.clearLayers();
-
-    // Show loading indicator in panel
-    const spreadSection = document.getElementById("section-spread");
-    spreadSection.innerHTML = `<div class="section-title">Spread Prediction</div>
-      <div class="meta-value" style="color:#555;font-size:12px">Fetching Open-Meteo wind + model...</div>`;
+    const sec = document.getElementById("section-spread");
+    sec.innerHTML = `<div class="section-title">Spread Prediction</div>
+      <div class="meta-value" style="color:#555;font-size:12px">Fetching wind + model...</div>`;
 
     try {
       const res = await fetch(`/api/spread?fire_lat=${props.lat}&fire_lon=${props.lon}&fire_frp=${props.frp}`);
       if (!res.ok) throw new Error((await res.json()).detail);
       const data = await res.json();
-
       const w = data.weather;
       const ellipses = data.ellipses.features;
 
-      // Draw ellipses on map (outermost first so inner renders on top)
       [...ellipses].reverse().forEach(f => {
         const h = f.properties.hours;
-        const style = ELLIPSE_STYLE[h] || ELLIPSE_STYLE[24];
-        const layer = L.geoJSON(f, { style }).addTo(spreadLayer);
-        layer.bindTooltip(`${SPREAD_LABELS[h]} spread`, { sticky: true, className: "spread-tooltip" });
+        L.geoJSON(f, { style: ELLIPSE_STYLE[h] || ELLIPSE_STYLE[24], interactive: false })
+          .addTo(spreadLayer)
+          .bindTooltip(`${h}h spread`, { sticky: true, className: "spread-tooltip" });
       });
 
-      // Wind arrow — draw a line from fire in wind direction
-      const windRad = (270 - w.wind_direction_deg) * Math.PI / 180;
+      // Downwind arrow (fire travels downwind = wind_dir + 180)
+      const downwindBearing = (w.wind_direction_deg + 180) % 360;
+      const brRad = downwindBearing * Math.PI / 180;
       const arrowLen = 0.08;
       const arrowEnd = [
-        props.lat + arrowLen * Math.sin(Math.PI / 2 - windRad),
-        props.lon + arrowLen * Math.cos(Math.PI / 2 - windRad),
+        props.lat + arrowLen * Math.cos(brRad),
+        props.lon + arrowLen * Math.sin(brRad) / Math.cos(props.lat * Math.PI / 180),
       ];
       L.polyline([[props.lat, props.lon], arrowEnd], {
-        color: "#88ccff", weight: 2, dashArray: "3 3",
-      }).addTo(spreadLayer).bindTooltip(`Wind ${w.wind_speed_kmh} km/h`, { sticky: true });
+        color: "#88ccff", weight: 2, dashArray: "3 3", interactive: false,
+      }).addTo(spreadLayer).bindTooltip(`Wind ${w.wind_speed_kmh.toFixed(1)} km/h from ${w.wind_direction_deg.toFixed(0)}° — fire spreads ${downwindBearing.toFixed(0)}°`, { sticky: true });
 
-      // Update panel spread section
       const h6  = ellipses.find(f => f.properties.hours === 6)?.properties;
       const h24 = ellipses.find(f => f.properties.hours === 24)?.properties;
 
-      spreadSection.innerHTML = `
+      sec.innerHTML = `
         <div class="section-title">Spread Prediction</div>
         <div class="meta-grid">
           <div class="meta-item">
@@ -414,7 +434,7 @@
             <div class="meta-value highlight">${w.wind_speed_kmh.toFixed(1)} km/h</div>
           </div>
           <div class="meta-item">
-            <div class="meta-label">Wind Direction</div>
+            <div class="meta-label">Wind From</div>
             <div class="meta-value highlight">${w.wind_direction_deg.toFixed(0)}° ${_windCardinal(w.wind_direction_deg)}</div>
           </div>
           <div class="meta-item">
@@ -431,168 +451,122 @@
           <div style="display:flex;gap:8px;flex-direction:column">
             ${ellipses.map(f => {
               const p = f.properties;
+              const c = p.hours===6?"#ff9900":p.hours===12?"#ff5500":"#ff2200";
               return `<div style="display:flex;justify-content:space-between;align-items:center">
                 <span style="display:flex;align-items:center;gap:6px">
-                  <span style="width:8px;height:8px;border-radius:50%;background:${p.hours===6?'#ff9900':p.hours===12?'#ff5500':'#ff2200'};display:inline-block"></span>
+                  <span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block"></span>
                   <span style="font-size:12px;color:#aaa">${p.hours}h</span>
                 </span>
-                <span style="font-size:12px;color:#ccc">↑ ${p.head_km.toFixed(1)} km head · ← ${p.semi_minor_km.toFixed(1)} km flank</span>
+                <span style="font-size:12px;color:#ccc">↑ ${p.head_km.toFixed(1)} km · ← ${p.semi_minor_km.toFixed(1)} km flank</span>
               </div>`;
             }).join("")}
           </div>
         </div>
-        <div style="margin-top:10px;font-size:10px;color:#444">
-          Rothermel (1972) + Anderson (1983) ellipse · Open-Meteo wind
-        </div>`;
-
+        <div style="margin-top:10px;font-size:10px;color:#444">Rothermel (1972) + Anderson (1983) · Open-Meteo</div>`;
     } catch (e) {
-      spreadSection.innerHTML = `<div class="section-title">Spread Prediction</div>
+      sec.innerHTML = `<div class="section-title">Spread Prediction</div>
         <div class="meta-value" style="color:#c0392b;font-size:12px">Error: ${e.message}</div>`;
     }
   }
 
-  function _windCardinal(deg) {
-    const dirs = ["N","NE","E","SE","S","SW","W","NW"];
-    return dirs[Math.round(deg / 45) % 8];
-  }
-
+  // ── Fire markers ──
   async function loadFires() {
     document.getElementById("status").textContent = "Fetching NASA FIRMS...";
     try {
       const res = await fetch("/api/fires");
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || res.statusText);
-      }
+      if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
       const data = await res.json();
       markersLayer.clearLayers();
 
       data.features.forEach(f => {
         const p = f.properties;
         const [lon, lat] = f.geometry.coordinates;
-        const color = COLORS[p.intensity] || COLORS.low;
-        const size  = SIZES[p.intensity]  || SIZES.low;
-
         const marker = L.circleMarker([lat, lon], {
-          radius: size,
-          fillColor: color,
-          color: "#000",
-          weight: 0.5,
-          fillOpacity: 0.85,
+          radius: SIZES[p.intensity] || 5,
+          fillColor: COLORS[p.intensity] || COLORS.low,
+          color: "#000", weight: 0.5, fillOpacity: 0.85,
         });
-
-        marker.on("click", () => {
-          if (activeMarker && activeMarker !== marker) {
-            activeMarker.setStyle({ weight: 0.5, color: "#000" });
-          }
+        marker.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          if (activeMarker && activeMarker !== marker) activeMarker.setStyle({ weight: 0.5, color: "#000" });
           marker.setStyle({ weight: 2, color: "#fff" });
           activeMarker = marker;
           map.panTo([lat, lon], { animate: true });
           openPanel(p);
         });
-
         markersLayer.addLayer(marker);
       });
 
       const t = new Date(data.fetched_at).toLocaleTimeString();
       document.getElementById("status").textContent = `Updated ${t} · ${data.count} detections`;
       document.getElementById("fire-count").textContent = `${data.count} fires`;
-
     } catch (e) {
       document.getElementById("status").textContent = `Error: ${e.message}`;
     }
   }
 
-  // ── Farm marker ──
-  const FARM_LAT = 33.2232;
-  const FARM_LON = -117.1611;
-
-  const farmIcon = L.divIcon({
-    className: "",
-    html: `<div style="
-      width:14px;height:14px;border-radius:50%;
-      background:#00cc55;border:2px solid #fff;
-      box-shadow:0 0 8px rgba(0,204,85,0.8);
-    "></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-  });
-
-  const farmMarker = L.marker([FARM_LAT, FARM_LON], { icon: farmIcon })
-    .addTo(map)
-    .bindTooltip("San Diego County Test Farm", { permanent: false, direction: "top" });
-
-  const farmSpreadLayer = L.layerGroup().addTo(map);
-
   // ── Run Forecaster ──
   async function runForecaster() {
     const btn = document.getElementById("forecaster-btn");
     const statusEl = document.getElementById("farm-status");
+    const fwiBadge = document.getElementById("fwi-badge");
     btn.disabled = true;
     btn.textContent = "⏳ Running...";
-    statusEl.style.display = "none";
 
     try {
-      const res = await fetch("/api/run-forecaster", { method: "POST" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || res.statusText);
-      }
+      const res = await fetch(`/api/run-forecaster?lat=${farmLat}&lon=${farmLon}`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
       const status = await res.json();
       const level = status.threat_level;
 
-      // Update farm status badge
+      // Farm status badge
       statusEl.className = level;
       statusEl.textContent = `Farm: ${level}`;
       statusEl.style.display = "block";
 
+      // FWI badge
+      const fwi = status.fwi_index ?? 0;
+      const fwiColor = fwi >= 12 ? "#ff3333" : fwi >= 9 ? "#ff8800" : fwi >= 6 ? "#ffcc00" : "#aaa";
+      fwiBadge.style.display = "block";
+      fwiBadge.style.color = fwiColor;
+      fwiBadge.style.borderColor = fwiColor + "44";
+      fwiBadge.textContent = `FWI ${fwi.toFixed(1)}`;
+
       // Update farm marker color
       const colors = { GREEN:"#00cc55", WATCH:"#ffcc00", WARNING:"#ff8800", CRITICAL:"#ff3333", EMERGENCY:"#ff44ff" };
-      farmMarker.setIcon(L.divIcon({
-        className: "",
-        html: `<div style="
-          width:14px;height:14px;border-radius:50%;
-          background:${colors[level]||"#fff"};border:2px solid #fff;
-          box-shadow:0 0 10px ${colors[level]||"#fff"}aa;
-        "></div>`,
-        iconSize: [14, 14], iconAnchor: [7, 7],
-      }));
+      farmMarker.setIcon(makeFarmIcon(colors[level] || "#fff"));
 
-      // Draw spread ellipses from status.json on the map
+      // Draw farm spread ellipses — non-interactive so fire markers stay clickable
       farmSpreadLayer.clearLayers();
       const sp = status.spread_prediction;
       if (sp && sp.horizons) {
-        const ellipseColors = { "6h":"#ff9900", "12h":"#ff5500", "24h":"#ff2200" };
+        const ec = { "6h":"#ff9900", "12h":"#ff5500", "24h":"#ff2200" };
         Object.entries(sp.horizons).reverse().forEach(([key, h]) => {
           L.geoJSON(h.polygon, {
-            style: {
-              color: ellipseColors[key] || "#ff2200",
-              fillColor: ellipseColors[key] || "#ff2200",
-              fillOpacity: 0.06, weight: 1.5, dashArray: "4 4",
-            }
+            style: { color: ec[key]||"#ff2200", fillColor: ec[key]||"#ff2200", fillOpacity: 0.06, weight: 1.5, dashArray: "4 4" },
+            interactive: false,
           }).addTo(farmSpreadLayer)
-            .bindTooltip(`Farm threat ${key} spread`, { sticky: true, className: "spread-tooltip" });
+            .bindTooltip(`Farm threat ${key}`, { sticky: true, className: "spread-tooltip" });
         });
 
-        // Line from fire to farm
         const fire = status.nearest_fire;
         if (fire) {
           const threatened = sp.time_to_farm?.threatened;
+          const eta = sp.time_to_farm?.hours;
           L.polyline(
-            [[fire.location.lat, fire.location.lon], [FARM_LAT, FARM_LON]],
-            { color: threatened ? "#ff3333" : "#888", weight: 1.5, dashArray: "6 4" }
+            [[fire.location.lat, fire.location.lon], [farmLat, farmLon]],
+            { color: threatened ? "#ff3333" : "#888", weight: 1.5, dashArray: "6 4", interactive: false }
           ).addTo(farmSpreadLayer)
             .bindTooltip(
               threatened
-                ? `⚠ Fire heading toward farm — ETA ${sp.time_to_farm.hours}h`
-                : `Fire not heading toward farm (${sp.time_to_farm.angular_diff_deg}° off-axis)`,
+                ? `Fire heading toward location — ETA ${eta}h`
+                : `Fire not heading toward location`,
               { sticky: true }
             );
         }
       }
 
-      // Pan to farm
-      map.panTo([FARM_LAT, FARM_LON], { animate: true });
+      map.panTo([farmLat, farmLon], { animate: true });
 
     } catch (e) {
       alert(`Forecaster error: ${e.message}`);
@@ -602,7 +576,7 @@
     }
   }
 
-  // Load existing status on page load if available
+  // Load existing status on page load
   fetch("/api/status").then(r => r.ok ? r.json() : null).then(status => {
     if (!status) return;
     const level = status.threat_level;
@@ -610,6 +584,18 @@
     statusEl.className = level;
     statusEl.textContent = `Farm: ${level}`;
     statusEl.style.display = "block";
+    const fwiBadge = document.getElementById("fwi-badge");
+    const fwi = status.fwi_index ?? 0;
+    const fwiColor = fwi >= 12 ? "#ff3333" : fwi >= 9 ? "#ff8800" : fwi >= 6 ? "#ffcc00" : "#aaa";
+    fwiBadge.style.display = "block";
+    fwiBadge.style.color = fwiColor;
+    fwiBadge.style.borderColor = fwiColor + "44";
+    fwiBadge.textContent = `FWI ${fwi.toFixed(1)}`;
+    // Restore farm location if saved
+    if (status.farm_lat && status.farm_lon) {
+      farmLat = status.farm_lat; farmLon = status.farm_lon;
+      farmMarker.setLatLng([farmLat, farmLon]);
+    }
   }).catch(() => {});
 
   loadFires();
