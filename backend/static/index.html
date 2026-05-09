@@ -334,9 +334,30 @@
     .addTo(map)
     .bindTooltip("Your location — drag to move", { permanent: false, direction: "top" });
 
+  // ── Farm radius circle (radius derived from total_acres) ──
+  let farmAcres = 100; // default until profile loads
+  function acresRadiusM(acres) { return Math.sqrt(acres * 4047 / Math.PI); }
+
+  let farmRadiusCircle = L.circle([farmLat, farmLon], {
+    radius: acresRadiusM(farmAcres),
+    color: "#00cc55", fillColor: "#00cc55", fillOpacity: 0.08,
+    weight: 2, dashArray: "5 5", interactive: false,
+  }).addTo(map);
+
+  function updateFarmRadius() {
+    farmRadiusCircle.setLatLng([farmLat, farmLon]);
+    farmRadiusCircle.setRadius(acresRadiusM(farmAcres));
+  }
+
+  // Load farm profile to get acres
+  fetch("/api/farm-profile").then(r => r.ok ? r.json() : null).then(p => {
+    if (p && p.total_acres) { farmAcres = p.total_acres; updateFarmRadius(); }
+  }).catch(() => {});
+
   farmMarker.on("dragend", () => {
     const ll = farmMarker.getLatLng();
     farmLat = ll.lat; farmLon = ll.lng;
+    updateFarmRadius();
   });
 
   // ── Pick mode ──
@@ -351,7 +372,8 @@
     if (!pickMode) return;
     farmLat = e.latlng.lat; farmLon = e.latlng.lng;
     farmMarker.setLatLng([farmLat, farmLon]);
-    togglePickMode(); // exit pick mode after placing
+    updateFarmRadius();
+    togglePickMode();
   });
 
   // ── Spread layers ──
@@ -587,6 +609,7 @@
         }
       }
 
+      updateFarmRadius();
       map.panTo([farmLat, farmLon], { animate: true });
 
     } catch (e) {
@@ -612,11 +635,13 @@
     fwiBadge.style.color = fwiColor;
     fwiBadge.style.borderColor = fwiColor + "44";
     fwiBadge.textContent = `FWI ${fwi.toFixed(1)}`;
+    if (status.total_acres) { farmAcres = status.total_acres; }
     // Restore farm location if saved
     if (status.farm_lat && status.farm_lon) {
       farmLat = status.farm_lat; farmLon = status.farm_lon;
       farmMarker.setLatLng([farmLat, farmLon]);
     }
+    updateFarmRadius();
   }).catch(() => {});
 
   // ── Livestock ──
@@ -680,8 +705,10 @@
   async function runLivestock() {
     const btn = document.getElementById("livestock-btn");
     btn.disabled = true; btn.textContent = "⏳ Running...";
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 120000);
     try {
-      const res = await fetch("/api/livestock/run", { method: "POST" });
+      const res = await fetch("/api/livestock/run", { method: "POST", signal: ctrl.signal });
       const data = await res.json();
       if (!res.ok) { alert(`Livestock error: ${data.detail || res.statusText}`); return; }
       livestockLayer.clearLayers();
@@ -707,7 +734,7 @@
       }
       renderLivestockOverlay(data);
     } catch (e) { alert(`Livestock error: ${e.message}`); }
-    finally { btn.disabled = false; btn.textContent = "🐄 Livestock"; }
+    finally { clearTimeout(timer); btn.disabled = false; btn.textContent = "🐄 Livestock"; }
   }
 
   // ── Crop Agent ──
@@ -751,18 +778,31 @@
   async function runCrop() {
     const btn = document.getElementById("crop-btn");
     btn.disabled = true; btn.textContent = "⏳ Running...";
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 120000);
     try {
-      const res = await fetch("/api/crop/run", { method: "POST" });
+      const res = await fetch("/api/crop/run", { method: "POST", signal: ctrl.signal });
       const data = await res.json();
       if (!res.ok) { alert(`Crop agent error: ${data.detail || res.statusText}`); return; }
       renderCropOverlay(data);
     } catch (e) { alert(`Crop error: ${e.message}`); }
-    finally { btn.disabled = false; btn.textContent = "🌾 Crop"; }
+    finally { clearTimeout(timer); btn.disabled = false; btn.textContent = "🌾 Crop"; }
   }
 
-  // Load existing outputs on page load
-  fetch("/api/livestock/status").then(r => r.ok ? r.json() : null).then(d => { if (d) loadLivestock(); }).catch(() => {});
-  fetch("/api/crop/status").then(r => r.ok ? r.json() : null).then(d => { if (d) renderCropOverlay(d); }).catch(() => {});
+  // Map markers only — overlays shown only when buttons clicked
+  fetch("/api/livestock/status").then(r => r.ok ? r.json() : null).then(d => {
+    if (!d || !d.pens) return;
+    d.pens.forEach(pen => {
+      try {
+        L.circleMarker([pen.lat, pen.lon], {
+          radius: 8, fillColor: livestockSpeciesColors[pen.species] || "#999",
+          color: pen.decision === "evacuate" ? "#10b981" : "#ef4444",
+          weight: 2, opacity: 1, fillOpacity: 0.8,
+        }).addTo(livestockLayer)
+          .bindPopup(`<b>${pen.pen_id}</b> (${pen.species})<br>${pen.decision.toUpperCase()}`);
+      } catch (_) {}
+    });
+  }).catch(() => {});
 
   loadFires();
   setInterval(loadFires, 5 * 60 * 1000);

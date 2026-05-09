@@ -294,21 +294,15 @@ def run_crop_agent(wildfire_status: dict, farm_fields: dict) -> None:
     farm_resources  = load_json(FARM_RESOURCES_FILE)
 
     # ── Build LLM input message ───────────────────────────────────────────────
+    _d = json.dumps
     user_message = (
-        "WILDFIRE STATUS JSON:\n"
-        f"{json.dumps(wildfire_status, indent=2)}\n\n"
-        "FARM FIELDS JSON:\n"
-        f"{json.dumps(farm_fields, indent=2)}\n\n"
-        "LIVE USDA PRICES JSON:\n"
-        f"{json.dumps(prices_data, indent=2)}\n\n"
-        "CROP PROPERTIES JSON:\n"
-        f"{json.dumps(crop_properties, indent=2)}\n\n"
-        "FARM RESOURCES JSON:\n"
-        f"{json.dumps(farm_resources, indent=2)}\n\n"
-        "FIELD WATER DATA JSON:\n"
-        f"{json.dumps(field_water_data, indent=2)}\n\n"
-        "FIELD FLAMMABILITY DATA JSON:\n"
-        f"{json.dumps(field_flammability, indent=2)}\n\n"
+        f"WILDFIRE STATUS:\n{_d(wildfire_status)}\n\n"
+        f"FARM FIELDS:\n{_d(farm_fields)}\n\n"
+        f"USDA PRICES:\n{_d(prices_data)}\n\n"
+        f"CROP PROPERTIES:\n{_d(crop_properties)}\n\n"
+        f"FARM RESOURCES:\n{_d(farm_resources)}\n\n"
+        f"FIELD WATER:\n{_d(field_water_data)}\n\n"
+        f"FIELD FLAMMABILITY:\n{_d(field_flammability)}\n\n"
         "Run Task 4 first, then Tasks 1, 2, 3 in that order."
     )
 
@@ -318,7 +312,7 @@ def run_crop_agent(wildfire_status: dict, farm_fields: dict) -> None:
         print("ERROR: GROQ_API_KEY not set in environment.")
         sys.exit(1)
 
-    client = Groq(api_key=api_key)
+    client = Groq(api_key=api_key, timeout=60.0)
     print(f"\nSending to Groq ({GROQ_MODEL})...")
 
     response = client.chat.completions.create(
@@ -328,7 +322,7 @@ def run_crop_agent(wildfire_status: dict, farm_fields: dict) -> None:
             {"role": "user",   "content": user_message},
         ],
         temperature=0.1,
-        max_tokens=4096,
+        max_tokens=2048,
     )
 
     raw = response.choices[0].message.content

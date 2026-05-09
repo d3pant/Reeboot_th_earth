@@ -323,11 +323,15 @@ async def run_setup(data: SetupInput):
         json.dump(farm_config, f, indent=2)
 
     # ── 2. Livestock/farm_profile.json ──
+    import math as _math
+    farm_radius_deg = _math.sqrt(data.total_acres * 4047 / _math.pi) / 111000  # degrees
+    pen_step = farm_radius_deg * 0.55  # pens spread within ~55% of radius
     pens_json = []
     for i, pen in enumerate(data.pens):
         zone = "Z1" if i < len(data.pens) // 2 + 1 else "Z2"
-        offset_lat = lat + (0.008 if zone == "Z1" else -0.004) + (i * 0.002)
-        offset_lon = lon + (i % 2) * 0.003 - 0.001
+        sign = 1 if zone == "Z1" else -1
+        offset_lat = lat + sign * pen_step * (0.6 + (i % 3) * 0.15)
+        offset_lon = lon + (i % 2) * pen_step * 0.5 - pen_step * 0.25
         pens_json.append({
             "pen_id": f"pen_{i+1:03d}",
             "zone": zone,
@@ -384,6 +388,21 @@ def get_status():
     if not STATUS_JSON.exists():
         raise HTTPException(status_code=404, detail="status.json not found — run the forecaster first")
     with open(STATUS_JSON) as f:
+        data = json.load(f)
+    profile_path = LIVESTOCK_DIR_CFG / "farm_profile.json"
+    if profile_path.exists():
+        with open(profile_path) as f:
+            profile = json.load(f)
+        data["total_acres"] = profile.get("total_acres")
+    return JSONResponse(data)
+
+
+@app.get("/api/farm-profile")
+def get_farm_profile():
+    profile_path = LIVESTOCK_DIR_CFG / "farm_profile.json"
+    if not profile_path.exists():
+        raise HTTPException(status_code=404, detail="Farm profile not set up yet")
+    with open(profile_path) as f:
         return JSONResponse(json.load(f))
 
 
