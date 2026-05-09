@@ -249,9 +249,15 @@ def get_status():
 
 
 @app.post("/api/run-forecaster")
-async def run_forecaster():
+async def run_forecaster(
+    lat: float = Query(None, description="Custom location latitude"),
+    lon: float = Query(None, description="Custom location longitude"),
+):
     """Run a real forecaster cycle using live NASA FIRMS + Open-Meteo data."""
     import math
+
+    farm_lat = lat if lat is not None else FARM_LAT
+    farm_lon = lon if lon is not None else FARM_LON
 
     farm_config_path = FORECASTER_DIR / "config" / "farm_config.json"
     with open(farm_config_path) as f:
@@ -261,11 +267,14 @@ async def run_forecaster():
     floor       = farm_config["hard_safety_floor"]
 
     # 1. Real weather at farm via Open-Meteo (no key needed)
-    farm_weather = fetch_weather(FARM_LAT, FARM_LON)
+    farm_weather = fetch_weather(farm_lat, farm_lon)
     fwi = farm_weather.get("fwi") or 0.0
 
-    # 2. Real nearest fire via NASA FIRMS
+    # 2. Real nearest fire via NASA FIRMS — prefer nominal/high confidence
     rows = await _fetch_firms_csv(CA_AREA)
+    confident_rows = [r for r in rows if r.get("confidence_raw") in ("n", "h")]
+    if confident_rows:
+        rows = confident_rows
 
     def haversine(lat1, lon1, lat2, lon2):
         R = 6371.0
@@ -278,7 +287,7 @@ async def run_forecaster():
     nearest_fire = None
     if rows:
         for r in rows:
-            r["_dist"] = haversine(FARM_LAT, FARM_LON, r["lat"], r["lon"])
+            r["_dist"] = haversine(farm_lat, farm_lon, r["lat"], r["lon"])
         nearest = min(rows, key=lambda r: r["_dist"])
         nearest_fire = {
             "name": f"Active Fire ({nearest['satellite']})",
@@ -338,7 +347,7 @@ async def run_forecaster():
         impact = time_to_impact(
             fire_lat=nearest_fire["location"]["lat"],
             fire_lon=nearest_fire["location"]["lon"],
-            target_lat=FARM_LAT, target_lon=FARM_LON,
+            target_lat=farm_lat, target_lon=farm_lon,
             wind_direction_deg=wind_dir,
             wind_kmh=wind_kmh,
             soil_moisture=soil_m,
@@ -360,6 +369,8 @@ async def run_forecaster():
     # 5. Build status.json — same structure, all real data
     status = {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "farm_lat": farm_lat,
+        "farm_lon": farm_lon,
         "stage": 1,
         "threat_level": threat_level,
         "threat_level_confidence": gate["threat_confidence"],
