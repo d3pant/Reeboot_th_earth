@@ -692,6 +692,294 @@ def run_insurance_agent():
 
 
 # ---------------------------------------------------------------------------
+# Action Briefing report (combined PDF, translation, email)
+# ---------------------------------------------------------------------------
+
+REPORT_DIR = FORECASTER_DIR / "output"
+
+
+def _report_pdf_path(lang: str) -> Path:
+    suffix = "" if lang in (None, "", "en") else f"_{lang}"
+    return REPORT_DIR / f"action_briefing{suffix}.pdf"
+
+
+def _run_report_subprocess(lang: str = "en") -> dict:
+    """Generate the action briefing PDF in the given language. Returns metadata."""
+    import subprocess
+    pdf_path = _report_pdf_path(lang)
+    try:
+        proc = subprocess.run(
+            ["python3", "-m", "forecaster.agents.report_agent", "--lang", lang],
+            cwd=Path(__file__).parent.parent,
+            capture_output=True, text=True, timeout=180,
+        )
+        if not pdf_path.exists():
+            detail = (proc.stderr or proc.stdout or "")[-500:] or "No PDF produced"
+            return {"ok": False, "error": detail}
+        st = pdf_path.stat()
+        return {
+            "ok": True,
+            "language": lang,
+            "language_label": REPORT_LANGUAGES.get(lang, lang),
+            "path": str(pdf_path),
+            "filename": pdf_path.name,
+            "size_bytes": st.st_size,
+            "generated_at": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "Report agent timed out (180s) — translation may be rate-limited"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+REPORT_LANGUAGES = {
+    "en": "English",
+    "es": "Spanish",
+    "zh-CN": "Chinese (Simplified)",
+    "vi": "Vietnamese",
+    "tl": "Tagalog (Filipino)",
+    "ko": "Korean",
+    "ar": "Arabic",
+    "hi": "Hindi",
+    "fr": "French",
+    "pt": "Portuguese",
+}
+
+
+@app.get("/api/report/languages")
+def list_report_languages():
+    return JSONResponse({"languages": [{"code": k, "label": v} for k, v in REPORT_LANGUAGES.items()]})
+
+
+@app.get("/api/report/status")
+def get_report_status():
+    """Return whether an English (default) action briefing exists, and its metadata."""
+    pdf_path = _report_pdf_path("en")
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="No action briefing yet — run the pipeline first")
+    st = pdf_path.stat()
+    return JSONResponse({
+        "ok": True,
+        "filename": pdf_path.name,
+        "size_bytes": st.st_size,
+        "generated_at": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "available_languages": [{"code": k, "label": v} for k, v in REPORT_LANGUAGES.items()],
+    })
+
+
+@app.post("/api/report/run")
+def run_report(lang: str = Query("en", description="Target language code")):
+    """Generate (or regenerate) the action briefing in the requested language."""
+    if lang not in REPORT_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language '{lang}'. See /api/report/languages.")
+    result = _run_report_subprocess(lang)
+    if not result.get("ok"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Report agent failed"))
+    return JSONResponse(result)
+
+
+@app.get("/api/report/pdf")
+def download_report_pdf(lang: str = Query("en", description="Target language code")):
+    """Stream the action briefing PDF. Generates on demand if the language version doesn't exist yet."""
+    if lang not in REPORT_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language '{lang}'.")
+    pdf_path = _report_pdf_path(lang)
+    if not pdf_path.exists():
+        result = _run_report_subprocess(lang)
+        if not result.get("ok"):
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate report"))
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=pdf_path.name,
+    )
+
+
+class ReportEmailInput(BaseModel):
+    recipient: str
+    language: str = "en"
+    note: Optional[str] = None
+
+
+N8N_WEBHOOK_DEFAULT = "https://drustagi.app.n8n.cloud/webhook/062d7ec3-7257-4b9b-ae3b-2383f3ab4939"
+
+
+def _build_summary() -> dict:
+    """Compact summary of the farm state for the n8n webhook. Drops
+    polygon coordinates, per-pen route waypoints, LLM rationale text,
+    and other verbose internals — keeps only the headline numbers a
+    stakeholder reading the email actually cares about."""
+    forecaster_dir = Path(__file__).parent.parent / "forecaster"
+    livestock_dir = Path(__file__).parent.parent / "Livestock"
+    crop_dir = Path(__file__).parent.parent / "crop_agent"
+
+    def _read(path: Path) -> dict:
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    status = _read(forecaster_dir / "output" / "status.json")
+    livestock_status = _read(livestock_dir / "livestock_status.json")
+    erpc = _read(livestock_dir / "erpc_message.json")
+    econ = _read(forecaster_dir / "output" / "econ_report.json")
+    policy = _read(forecaster_dir / "output" / "policy_report.json")
+    profile = _read(livestock_dir / "farm_profile.json")
+
+    crop_candidates = (
+        list(crop_dir.glob("output_*.json"))
+        + list(crop_dir.glob("crop_agent_output_*.json"))
+    )
+    crop_candidates = [p for p in crop_candidates if "raw" not in p.name and "erpc" not in p.name]
+    crop_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    crop = _read(crop_candidates[0]) if crop_candidates else {}
+
+    fire = status.get("nearest_fire") or {}
+    spread = status.get("spread_prediction") or {}
+    impact = (spread.get("time_to_farm") or {}) if isinstance(spread, dict) else {}
+    cost_opt = (erpc.get("cost_optimization") or {}) if erpc else {}
+
+    field_decisions = (crop.get("field_decisions") or crop.get("task4") or [])
+    crop_summary = [
+        {
+            "field": f.get("field_id"),
+            "crop": f.get("crop_category"),
+            "decision": f.get("decision"),
+        }
+        for f in field_decisions[:6]
+    ]
+
+    actions = (econ.get("action_queue") or [])[:3]
+    actions_summary = [
+        {
+            "action": (a.get("action_description") or "")[:120],
+            "urgency": a.get("urgency"),
+            "roi": a.get("roi"),
+            "loss_avoided_usd": a.get("confidence_adjusted_loss_avoided_usd"),
+            "cost_usd": a.get("estimated_action_cost_usd"),
+        }
+        for a in actions
+    ]
+
+    programs = (policy.get("eligible_programs") or [])[:3]
+    programs_summary = [
+        {
+            "name": p.get("name"),
+            "agency": p.get("agency"),
+            "deadline": p.get("deadline"),
+            "status": p.get("eligibility_status"),
+        }
+        for p in programs
+    ]
+
+    insurance_path = forecaster_dir / "output" / "ccc_576_filled.pdf"
+
+    return {
+        "farm_name": profile.get("farm_name") or status.get("farm_name"),
+        "threat_level": status.get("threat_level"),
+        "nearest_fire": {
+            "name": fire.get("name"),
+            "distance_km": fire.get("distance_km"),
+            "frp_mw": fire.get("frp_mw"),
+        } if fire else None,
+        "time_to_impact_hours": impact.get("hours"),
+        "fwi": status.get("fwi_index"),
+        "wind_kmh": status.get("wind_speed_kmh"),
+        "animals_at_risk": cost_opt.get("total_animals_at_risk"),
+        "animals_can_evacuate": cost_opt.get("animals_can_evacuate"),
+        "livestock_value_usd": cost_opt.get("value_can_save_usd"),
+        "total_exposure_usd": (econ.get("financial_exposure") or {}).get("total_exposure_usd"),
+        "crop_decisions": crop_summary,
+        "top_actions": actions_summary,
+        "top_aid_programs": programs_summary,
+        "insurance_pdf_ready": insurance_path.exists(),
+    }
+
+
+@app.post("/api/report/email")
+def email_report(data: ReportEmailInput):
+    """GET the n8n webhook with the action briefing payload. We use GET
+    because that's what the workflow's Webhook trigger is configured for.
+    Small fields (recipient, language, etc.) ride as query parameters so
+    they're visible to n8n's Webhook node either way; the full combined-agent
+    JSON (status + crop + livestock + econ + policy + base64 PDF) goes in the
+    request body for nodes that read it.
+
+    Override the webhook URL with N8N_WEBHOOK_URL in .env if needed.
+    """
+    import base64
+    import re
+
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", data.recipient):
+        raise HTTPException(status_code=400, detail="Invalid recipient email")
+    if data.language not in REPORT_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language '{data.language}'")
+
+    pdf_path = _report_pdf_path(data.language)
+    if not pdf_path.exists():
+        result = _run_report_subprocess(data.language)
+        if not result.get("ok"):
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate report"))
+
+    webhook_url = os.environ.get("N8N_WEBHOOK_URL", N8N_WEBHOOK_DEFAULT)
+    lang_label = REPORT_LANGUAGES.get(data.language, data.language)
+
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
+
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    summary = _build_summary()
+
+    body_payload = {
+        "recipient": data.recipient,
+        "subject": f"Wildfire Action Briefing — {lang_label}",
+        "language": data.language,
+        "note": data.note or "",
+        "filename": pdf_path.name,
+        "pdf_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+        "generated_at": generated_at,
+        "summary": summary,
+    }
+
+    query_params = {
+        "recipient": data.recipient,
+        "language": data.language,
+        "filename": pdf_path.name,
+    }
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            # GET with both query params and JSON body. httpx + most servers
+            # accept this even though it's unusual — if your n8n setup ignores
+            # the body, the query params still carry the key recipient fields.
+            resp = client.request(
+                "GET", webhook_url, params=query_params, json=body_payload,
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="n8n webhook timed out (30s)")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"n8n webhook error: {e}")
+
+    if resp.status_code >= 400:
+        detail = resp.text[:300] if resp.text else f"HTTP {resp.status_code}"
+        raise HTTPException(status_code=502, detail=f"n8n webhook returned {resp.status_code}: {detail}")
+
+    return JSONResponse({
+        "ok": True,
+        "recipient": data.recipient,
+        "language": data.language,
+        "language_label": lang_label,
+        "attachment": pdf_path.name,
+        "size_bytes": len(pdf_bytes),
+        "webhook_method": "GET",
+        "webhook_status": resp.status_code,
+        "webhook_response": (resp.text[:500] if resp.text else None),
+        "sent_at": generated_at,
+    })
+
+
+# ---------------------------------------------------------------------------
 # Livestock endpoints
 # ---------------------------------------------------------------------------
 
@@ -905,6 +1193,7 @@ async def run_pipeline(
 
     econ_result = _run_econ_subprocess()
     insurance_result = _run_insurance_subprocess()
+    report_result = _run_report_subprocess("en")
 
     return JSONResponse({
         "forecaster": forecaster_status,
@@ -912,5 +1201,6 @@ async def run_pipeline(
         "livestock": livestock_result,
         "econ": econ_result,
         "insurance": insurance_result,
+        "report": report_result,
         "data_sources": (econ_result or {}).get("data_sources"),
     })

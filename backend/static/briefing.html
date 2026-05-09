@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reeboot — Action Briefing</title>
+  <style>
+    :root {
+      --green:        #2d6a4f;
+      --green2:       #40916c;
+      --green-light:  #d8f3dc;
+      --fire:         #c0392b;
+      --fire2:        #e74c3c;
+      --orange:       #e67e22;
+      --amber:        #f39c12;
+      --cream:        #faf9f5;
+      --card:         #ffffff;
+      --border:       #e8e6e0;
+      --text:         #1a1a1a;
+      --text2:        #5a5a5a;
+      --text3:        #9a9a9a;
+      --radius:       14px;
+      --shadow:       0 2px 12px rgba(0,0,0,0.07);
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); }
+
+    /* ── Header ── */
+    #header {
+      position: sticky; top: 0; z-index: 1000;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--green); text-decoration: none; }
+    #logo span { font-size: 22px; }
+    #farm-info-chip {
+      display: flex; align-items: center; gap: 8px; padding: 4px 12px;
+      background: var(--cream); border: 1px solid var(--border); border-radius: 20px; font-size: 12px;
+    }
+    #nav { display: flex; gap: 2px; margin-left: 20px; }
+    .nav-tab {
+      padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+      color: var(--text2); cursor: pointer; text-decoration: none;
+      transition: all 0.15s; border: none; background: none;
+      white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .nav-tab:hover { background: var(--cream); color: var(--text); }
+    .nav-tab.active { background: var(--green); color: #fff; }
+    #header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    #threat-badge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+      background: rgba(192,57,43,0.1); color: var(--fire); border: 1px solid rgba(192,57,43,0.2);
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    #map-link { padding: 6px 13px; border-radius: 8px; font-size: 12px; font-weight: 500; color: var(--text3); text-decoration: none; border: 1px solid var(--border); }
+    #map-link:hover { color: var(--text); }
+
+    /* ── Page ── */
+    #page { max-width: 1100px; margin: 0 auto; padding: 28px 24px 64px; }
+
+    /* ── Hero card ── */
+    .hero {
+      background: linear-gradient(135deg, var(--card) 0%, #fafbfc 100%);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px; box-shadow: var(--shadow); margin-bottom: 22px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ""; position: absolute; top: 0; right: 0; width: 280px; height: 280px;
+      background: radial-gradient(circle at top right, rgba(64,145,108,0.08), transparent 70%);
+      pointer-events: none;
+    }
+    .hero h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; color: var(--text); }
+    .hero p  { font-size: 13px; color: var(--text2); margin-bottom: 22px; max-width: 720px; }
+
+    .hero-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    .panel {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 20px;
+    }
+    .panel h3 {
+      font-size: 11px; color: var(--text3); font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 12px;
+    }
+
+    /* ── Form controls ── */
+    .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .form-row label {
+      font-size: 11px; color: var(--text3); font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    select, input[type="email"], input[type="text"], textarea {
+      width: 100%; background: var(--cream); border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); padding: 10px 12px; font-size: 14px; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit; -webkit-appearance: none;
+    }
+    select:focus, input:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(45,106,79,0.12); }
+    select {
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+      background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
+    }
+    textarea { min-height: 64px; resize: vertical; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+      padding: 12px 22px; background: var(--green); color: #fff;
+      border-radius: 12px; font-size: 14px; font-weight: 700; text-decoration: none;
+      box-shadow: 0 4px 14px rgba(45,106,79,0.3); transition: all 0.15s;
+      border: none; cursor: pointer; font-family: inherit; width: 100%;
+    }
+    .btn-primary:hover { background: #265d44; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(45,106,79,0.35); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-meta { font-size: 11px; color: var(--text3); margin-top: 8px; text-align: center; }
+    .btn-meta.success { color: var(--green); font-weight: 600; }
+    .btn-meta.error { color: var(--fire); font-weight: 600; }
+
+    /* ── Section cards ── */
+    .section {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; box-shadow: var(--shadow); margin-bottom: 18px;
+    }
+    .section h2 {
+      font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section .lede { font-size: 12px; color: var(--text3); margin-bottom: 16px; }
+    .section h2 .icn {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: var(--green-light); color: var(--green);
+      display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+
+    /* ── Contents grid (what's in the report) ── */
+    .contents-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+    }
+    .content-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px; background: var(--cream); border-radius: 10px;
+      font-size: 13px; line-height: 1.45;
+    }
+    .content-item .ci-no {
+      flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--green); color: #fff; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .content-item .ci-title { font-weight: 700; color: var(--text); }
+    .content-item .ci-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+
+    /* ── Checklist ── */
+    .checklist-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .checklist-cat h4 {
+      font-size: 11px; color: var(--green); font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
+    }
+    .checklist-cat ul { list-style: none; padding: 0; }
+    .checklist-cat li {
+      font-size: 12px; color: var(--text); padding: 5px 0 5px 24px;
+      position: relative; line-height: 1.45;
+    }
+    .checklist-cat li::before {
+      content: ""; position: absolute; left: 0; top: 8px;
+      width: 14px; height: 14px; border: 1.5px solid var(--text3); border-radius: 3px;
+    }
+
+    /* ── Setup banner ── */
+    #setup-banner {
+      display: none; position: sticky; top: 0; z-index: 1500;
+      background: #fef9c3; color: #854d0e; border-bottom: 1px solid #f3e07d;
+      padding: 10px 24px; font-size: 13px; font-weight: 600; text-align: center;
+    }
+
+    @media (max-width: 820px) {
+      .hero-grid, .contents-grid, .checklist-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="setup-banner">
+  <span style="margin-right:6px;">⚠️</span>
+  Farm setup is incomplete — fill out your farm details to unlock live agent runs.
+  <a href="/static/setup.html" style="color:#7c2d12;text-decoration:underline;font-weight:700;margin-left:8px;">Complete setup →</a>
+</div>
+
+<div id="header">
+  <a id="logo" href="/"><span>🌱</span> Reeboot</a>
+  <div style="width:1px;height:28px;background:var(--border);margin:0 4px;"></div>
+  <div id="farm-info-chip">
+    <span id="farm-name-hdr" style="font-weight:700;color:var(--text);">—</span>
+    <span style="color:var(--text3);">·</span>
+    <span id="farm-acres-hdr" style="color:var(--text2);">— ac</span>
+    <span style="color:var(--text3);">·</span>
+    <span id="farm-pens-hdr" style="color:var(--text2);">— pens</span>
+  </div>
+  <nav id="nav">
+    <a class="nav-tab" href="/static/dashboard.html">🏠 Overview</a>
+    <a class="nav-tab" href="/static/dashboard.html?tab=livestock">🐄 Livestock</a>
+    <a class="nav-tab" href="/static/dashboard.html?tab=crop">🌾 Crops</a>
+    <a class="nav-tab" href="/static/financial.html">💰 Financial</a>
+    <span class="nav-tab active">📋 Plan</span>
+  </nav>
+  <div id="header-right">
+    <a id="map-link" href="/static/setup.html"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Farm Setup</a>
+    <div id="threat-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294a2.5 2.5 0 0 0 2.5 3z"/></svg><span id="hdr-threat">Loading…</span></div>
+  </div>
+</div>
+
+<div id="page">
+
+  <!-- ── HERO: Download + Email panels ── -->
+  <div class="hero">
+    <h1>📋 Wildfire Action Briefing</h1>
+    <p>One PDF combining your forecaster, livestock, crop, and financial outputs, plus a printable evacuation go-bag checklist. Pick a language, then download or email it to family, vets, or your FSA office.</p>
+
+    <div class="hero-grid">
+
+      <!-- Download panel -->
+      <div class="panel">
+        <h3>Download PDF</h3>
+        <div class="form-row">
+          <label for="lang-download">Language</label>
+          <select id="lang-download">
+            <option value="en">English</option>
+          </select>
+        </div>
+        <button class="btn-primary" id="btn-download" onclick="downloadReport()">
+          <span style="font-size:16px;">⬇</span> Download briefing
+        </button>
+        <div class="btn-meta" id="download-meta">—</div>
+      </div>
+
+      <!-- Email panel -->
+      <div class="panel">
+        <h3>Send to a stakeholder</h3>
+        <div class="form-row">
+          <label for="email-to">Recipient email</label>
+          <input type="email" id="email-to" placeholder="name@example.com" required />
+        </div>
+        <button class="btn-primary" id="btn-email" onclick="sendEmail()">
+          ✉ Send briefing
+        </button>
+        <div class="btn-meta" id="email-meta">Uses the language selected on the left. The recipient receives the PDF as an email attachment.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── What's in the report ── -->
+  <div class="section">
+    <h2><span class="icn">📄</span> What's in this report</h2>
+    <p class="lede">Each section pulls live data from the corresponding agent.</p>
+    <div class="contents-grid">
+      <div class="content-item"><div class="ci-no">1</div><div><div class="ci-title">Threat snapshot</div><div class="ci-sub">Threat level, nearest fire, FWI, wind, time-to-impact</div></div></div>
+      <div class="content-item"><div class="ci-no">2</div><div><div class="ci-title">Livestock plan</div><div class="ci-sub">Per-pen evacuation decisions, evac sites, cost optimization</div></div></div>
+      <div class="content-item"><div class="ci-no">3</div><div><div class="ci-title">Crop plan</div><div class="ci-sub">Field decisions, hydration schedule, economic impact</div></div></div>
+      <div class="content-item"><div class="ci-no">4</div><div><div class="ci-title">Financial snapshot</div><div class="ci-sub">Total exposure, ROI-ranked actions, blocked actions</div></div></div>
+      <div class="content-item"><div class="ci-no">5</div><div><div class="ci-title">Aid & insurance</div><div class="ci-sub">CCC-576 reminder, top eligible aid programs, deadlines</div></div></div>
+      <div class="content-item"><div class="ci-no">6</div><div><div class="ci-title">Evacuation go-bag checklist</div><div class="ci-sub">Personal docs, animal records, vehicle prep, contacts</div></div></div>
+    </div>
+  </div>
+
+  <!-- ── Evacuation Checklist preview (visible on page) ── -->
+  <div class="section">
+    <h2><span class="icn">🧳</span> Evacuation Go-Bag Checklist</h2>
+    <p class="lede">Pack these <b>now</b> so you can leave within 15 minutes if a critical threat is declared.</p>
+    <div class="checklist-grid">
+
+      <div class="checklist-cat">
+        <h4>Personal</h4>
+        <ul>
+          <li>Government ID, passport, driver's license</li>
+          <li>Insurance cards (health, property, crop, livestock)</li>
+          <li>Cash and credit/debit cards</li>
+          <li>Phone and charger (car charger, power bank)</li>
+          <li>Prescriptions and 7-day medication supply</li>
+          <li>Eyeglasses or hearing aids</li>
+        </ul>
+      </div>
+
+      <div class="checklist-cat">
+        <h4>Documents</h4>
+        <ul>
+          <li>Property deeds and mortgage papers</li>
+          <li>Livestock registration and vaccination records</li>
+          <li>Crop insurance policies and recent receipts</li>
+          <li>Tax records (last 3 years)</li>
+          <li>Birth certificates, social security cards</li>
+          <li>Vehicle titles and registration</li>
+          <li>USB drive or cloud backup of farm records</li>
+        </ul>
+      </div>
+
+      <div class="checklist-cat">
+        <h4>Animals</h4>
+        <ul>
+          <li>Halters, leads, and transport crates</li>
+          <li>Portable water containers and 3-day feed</li>
+          <li>Veterinary records and medications</li>
+          <li>Photos of each animal (proof of ownership)</li>
+          <li>Pet carriers and leashes</li>
+        </ul>
+      </div>
+
+      <div class="checklist-cat">
+        <h4>Farm Records</h4>
+        <ul>
+          <li>Backup of farm management software</li>
+          <li>Field maps and irrigation schedules</li>
+          <li>Equipment inventory and serial numbers</li>
+          <li>Contact list: vets, suppliers, neighbors</li>
+        </ul>
+      </div>
+
+      <div class="checklist-cat">
+        <h4>Vehicle Preparation</h4>
+        <ul>
+          <li>Fuel tank filled (do this NOW)</li>
+          <li>Tire pressure and spare checked</li>
+          <li>Emergency kit: water, food, first-aid (3 days)</li>
+          <li>Blankets, change of clothes, sturdy shoes</li>
+          <li>Flashlight and extra batteries</li>
+        </ul>
+      </div>
+
+      <div class="checklist-cat">
+        <h4>Don't forget</h4>
+        <ul>
+          <li>Family photos and irreplaceable items</li>
+          <li>Comfort items for children</li>
+          <li>Evacuation contact addresses</li>
+          <li>Paper maps of evacuation routes</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+const THREAT_PALETTE = {
+  GREEN:     { bg: 'rgba(64,145,108,0.1)',  fg: '#2d6a4f', bd: 'rgba(64,145,108,0.25)' },
+  WATCH:     { bg: 'rgba(243,156,18,0.1)',  fg: '#b45309', bd: 'rgba(243,156,18,0.25)' },
+  WARNING:   { bg: 'rgba(230,126,34,0.12)', fg: '#9a3412', bd: 'rgba(230,126,34,0.3)'  },
+  CRITICAL:  { bg: 'rgba(192,57,43,0.1)',   fg: '#c0392b', bd: 'rgba(192,57,43,0.25)' },
+  EMERGENCY: { bg: 'rgba(127,29,29,0.15)',  fg: '#7f1d1d', bd: 'rgba(127,29,29,0.4)'  },
+};
+function applyThreatColor(level) {
+  const p = THREAT_PALETTE[level] || THREAT_PALETTE.WARNING;
+  const el = document.getElementById('threat-badge');
+  if (el) { el.style.background = p.bg; el.style.color = p.fg; el.style.borderColor = p.bd; }
+}
+
+const fmtBytes = b => b >= 1e6 ? `${(b/1e6).toFixed(1)} MB` : b >= 1e3 ? `${(b/1e3).toFixed(0)} KB` : `${b} B`;
+
+let reportStatus = null;
+
+async function loadAll() {
+  // Setup banner
+  try {
+    const r = await fetch('/api/setup/status');
+    if (r.ok) {
+      const s = await r.json();
+      document.getElementById('setup-banner').style.display = s.complete ? 'none' : 'block';
+    }
+  } catch (_) {}
+
+  // Header chip + threat badge
+  try {
+    const [pRes, sRes] = await Promise.all([fetch('/api/farm-profile'), fetch('/api/status')]);
+    if (pRes.ok) {
+      const p = await pRes.json();
+      document.getElementById('farm-name-hdr').textContent = p.farm_name || '—';
+      document.getElementById('farm-acres-hdr').textContent = (p.total_acres ?? '—') + ' ac';
+      const n = Array.isArray(p.pens) ? p.pens.length : 0;
+      document.getElementById('farm-pens-hdr').textContent = n + (n === 1 ? ' pen' : ' pens');
+    }
+    if (sRes.ok) {
+      const s = await sRes.json();
+      const lvl = s.threat_level || 'WARNING';
+      document.getElementById('hdr-threat').textContent = lvl + ' Threat';
+      applyThreatColor(lvl);
+    }
+  } catch (_) {}
+
+  // Languages dropdown
+  try {
+    const r = await fetch('/api/report/languages');
+    if (r.ok) {
+      const { languages } = await r.json();
+      ['lang-download', 'lang-email'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = languages.map(l => `<option value="${l.code}">${l.label}</option>`).join('');
+      });
+    }
+  } catch (_) {}
+
+  // Report status
+  try {
+    const r = await fetch('/api/report/status');
+    if (r.ok) {
+      reportStatus = await r.json();
+      const at = new Date(reportStatus.generated_at).toLocaleString();
+      document.getElementById('download-meta').textContent = `${reportStatus.filename} · ${fmtBytes(reportStatus.size_bytes)} · generated ${at}`;
+    } else {
+      document.getElementById('download-meta').textContent = 'No briefing generated yet — clicking download will create one.';
+    }
+  } catch (_) {}
+}
+
+async function downloadReport() {
+  const btn = document.getElementById('btn-download');
+  const meta = document.getElementById('download-meta');
+  const lang = document.getElementById('lang-download').value;
+  btn.disabled = true; btn.textContent = '⏳ Generating PDF…';
+  meta.className = 'btn-meta';
+  meta.textContent = lang === 'en' ? 'Preparing English briefing…' : 'Translating and rendering PDF (this can take 30–90s for non-English)…';
+  try {
+    // Trigger generation server-side first so we can show errors clearly
+    const genRes = await fetch(`/api/report/run?lang=${encodeURIComponent(lang)}`, { method: 'POST' });
+    if (!genRes.ok) {
+      const e = await genRes.json().catch(() => ({}));
+      throw new Error(e.detail || genRes.statusText);
+    }
+    const data = await genRes.json();
+    // Now stream the PDF to the browser
+    const a = document.createElement('a');
+    a.href = `/api/report/pdf?lang=${encodeURIComponent(lang)}`;
+    a.download = data.filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    meta.className = 'btn-meta success';
+    meta.textContent = `✓ Downloaded ${data.filename} (${fmtBytes(data.size_bytes)})`;
+  } catch (e) {
+    meta.className = 'btn-meta error';
+    meta.textContent = '✗ ' + (e.message || 'Failed to generate report');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span style="font-size:16px;">⬇</span> Download briefing';
+  }
+}
+
+async function sendEmail() {
+  const btn = document.getElementById('btn-email');
+  const meta = document.getElementById('email-meta');
+  const input = document.getElementById('email-to');
+  const recipient = input.value.trim();
+  const language = document.getElementById('lang-download').value || 'en';
+
+  if (!recipient) {
+    meta.className = 'btn-meta error';
+    meta.textContent = '✗ Enter a recipient email address first';
+    input.focus();
+    return;
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) {
+    meta.className = 'btn-meta error';
+    meta.textContent = '✗ That doesn\'t look like a valid email address';
+    input.focus();
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ Sending…';
+  meta.className = 'btn-meta';
+  meta.textContent = `Generating ${language === 'en' ? 'English' : 'translated'} PDF and triggering n8n…`;
+
+  try {
+    const res = await fetch('/api/report/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient, language }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || res.statusText);
+    }
+    const data = await res.json();
+    meta.className = 'btn-meta success';
+    meta.textContent = `✓ Sent to ${data.recipient} (${data.attachment}, ${fmtBytes(data.size_bytes)})`;
+  } catch (e) {
+    meta.className = 'btn-meta error';
+    meta.textContent = '✗ ' + (e.message || 'Failed to send');
+  } finally {
+    btn.disabled = false; btn.textContent = '✉ Send briefing';
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>

@@ -8,17 +8,22 @@ An AI-powered wildfire monitoring and agricultural advisory system built for **C
 
 1. [System Overview](#system-overview)
 2. [Agents](#agents)
-3. [Running the System](#running-the-system)
-4. [External APIs & Data Sources](#external-apis--data-sources)
-5. [Aid & Recovery Programs](#aid--recovery-programs)
-6. [Science & Threshold References](#science--threshold-references)
-7. [License](#license)
+3. [Frontend Dashboard](#frontend-dashboard)
+4. [Backend API](#backend-api)
+5. [End-to-End Pipeline](#end-to-end-pipeline)
+6. [n8n Webhook Integration](#n8n-webhook-integration)
+7. [Multilingual Action Briefing](#multilingual-action-briefing)
+8. [Running the System](#running-the-system)
+9. [External APIs & Data Sources](#external-apis--data-sources)
+10. [Aid & Recovery Programs](#aid--recovery-programs)
+11. [Science & Threshold References](#science--threshold-references)
+12. [License](#license)
 
 ---
 
 ## System Overview
 
-Four agents. One linear pipeline with a parallel middle stage. Dormant until a real threat exists, then activates fully.
+Six agents in a linear pipeline with a parallel middle stage. Dormant until a real threat exists, then activates fully.
 
 ```
 ┌─────────────────┐
@@ -29,17 +34,25 @@ Four agents. One linear pipeline with a parallel middle stage. Dormant until a r
     ┌────┴────┐
     ▼         ▼
 ┌───────┐ ┌──────────┐
-│ CROP  │ │LIVESTOCK │  ← Parallel, communicate with each other
+│ CROP  │ │LIVESTOCK │  ← Parallel (asyncio); communicate via files
 │ AGENT │ │  AGENT   │
 └───┬───┘ └────┬─────┘
     └─────┬─────┘
           ▼
 ┌──────────────────────┐
-│        ERPC          │  ← Econ + Policy coordinator
+│   ERPC: Econ ▸ Policy▸│  ← Reads live crop + livestock outputs;
+│         Insurance     │     fills CCC-576 PDF
 └──────────┬───────────┘
            ▼
-      FARMER DASHBOARD
+┌──────────────────────┐
+│  REPORT AGENT (PDF)  │  ← Combined briefing + go-bag checklist;
+│  + 10 languages      │     translation via Google + Unicode fonts
+└──────────┬───────────┘
+           ▼
+   FARMER DASHBOARD ◂──── n8n webhook (email/Slack/SMS via your workflow)
 ```
+
+The whole chain runs in one HTTP call: **`POST /api/run-pipeline`** triggers forecaster → (crop ‖ livestock) → econ → insurance → report sequentially, in ~60–180s end-to-end.
 
 Threat levels used system-wide: `GREEN → WATCH → WARNING → CRITICAL → EMERGENCY`
 
@@ -51,14 +64,21 @@ Threat levels used system-wide: `GREEN → WATCH → WARNING → CRITICAL → EM
 | `forecaster/agents/econ_agent.py` | ERPC econ module — financial exposure, ROI action ranking |
 | `forecaster/agents/policy_agent.py` | ERPC policy module — aid/grant eligibility engine |
 | `forecaster/agents/insurance_agent.py` | ERPC insurance module — fills official USDA CCC-576 Notice of Loss form |
+| `forecaster/agents/report_agent.py` | Action briefing PDF — combines all agent outputs, 10 languages, evacuation checklist |
 | `forecaster/models/spread_model.py` | Rothermel fire spread model + Anderson ellipse |
 | `forecaster/data_sources/` | Data fetchers: NASA FIRMS, NDVI, Open-Meteo, NOAA, SDG&E |
 | `forecaster/predictors/` | WIFIRE + Pyrecast spread prediction integrations |
 | `forecaster/config/farm_config.json` | Farm profile: location, thresholds, zones, crops, animals |
-| `forecaster/output/` | Runtime outputs: `status.json`, `wake_up_packet.json`, `econ_report.json`, `policy_report.json`, `ccc_576_filled.pdf` |
+| `forecaster/output/` | Runtime outputs: `status.json`, `wake_up_packet.json`, `econ_report.json`, `policy_report.json`, `ccc_576_filled.pdf`, `action_briefing[_lang].pdf` |
 | `forecaster/forms/` | Bundled government form templates: `ccc_576.pdf` (official USDA Notice of Loss) |
-| `backend/main.py` | FastAPI server — serves live NASA FIRMS fire map |
-| `backend/static/index.html` | Leaflet.js map visualization |
+| `crop_agent/crop_agent.py` | Groq llama-3.3-70b crop agent — field decisions, fire reduction, hydration, economic impact |
+| `Livestock/livestock_agent.py` | Async OSRM-routed evacuation planner — per-pen decisions, transport pool, cost optimization |
+| `backend/main.py` | FastAPI server — agent orchestration, pipeline endpoint, briefing/insurance/report endpoints |
+| `backend/static/setup.html` | 3-step farm onboarding form (location, livestock, crops) |
+| `backend/static/dashboard.html` | Live threat dashboard with map, threat gauge, agent panels |
+| `backend/static/financial.html` | Financial overview: exposure, ROI actions, aid programs, insurance form download |
+| `backend/static/briefing.html` | Plan tab: download briefing PDF in 10 languages + n8n webhook send |
+| `.env.example` | Template for `.env` with all required API keys |
 
 ---
 
@@ -158,41 +178,250 @@ The agent pre-populates all fields it has data for and leaves the rest blank so 
 
 `forecaster/agents/policy_agent.py` → `forecaster/output/policy_report.json`
 
-Runs post-event (after all-clear). Evaluates farm eligibility for 21 wildfire recovery programs across USDA, FEMA, SBA, and CA state agencies. Outputs a ranked list (confirmed → likely → check_required → ineligible) with deadlines, required documents, and direct links.
+Runs post-event (after all-clear). Evaluates farm eligibility for 25+ wildfire recovery programs across USDA, FEMA, SBA, and CA state agencies. Outputs a ranked list (confirmed → likely → check_required → ineligible) with deadlines, required documents, and direct links.
 
-Key logic: FEMA Disaster Declarations API is queried first — that single boolean gates whether FEMA IA, FEMA HMGP, FSA Emergency Loans, and SBA EIDL are `confirmed` or `check_required`. Loss flags (`crop_loss`, `livestock_loss`, `economic_injury`) are derived live from `econ_report.json`. All other eligibility fields use hardcoded farm profile constants.
+Key logic: FEMA Disaster Declarations API is queried first — that single boolean gates whether FEMA IA, FEMA HMGP, FSA Emergency Loans, and SBA EIDL are `confirmed` or `check_required`. Loss flags (`crop_loss`, `livestock_loss`, `economic_injury`) are derived live from `econ_report.json`. **Tavily web-search enrichment** scores acceptance probability for each program based on current eligibility chatter; all other eligibility fields use farm profile constants.
+
+---
+
+### Report Agent
+
+`forecaster/agents/report_agent.py` → `forecaster/output/action_briefing[_<lang>].pdf`
+
+Final stage of the pipeline. Pulls every other agent's output and renders a single comprehensive PDF the farmer (or stakeholder) can read on a phone or print. Produced in **English plus 9 other languages** on demand.
+
+**Sections (text-heavy prose, not dashboards — written so Google Translate produces high-quality output):**
+
+1. Threat snapshot — level, nearest fire, FWI, wind, time-to-impact
+2. Livestock plan — per-pen evacuation decisions, evac sites, cost optimization
+3. Crop plan — field decisions, hydration schedule, economic impact
+4. Financial snapshot — total exposure, ROI-ranked actions, blocked actions
+5. Aid & insurance — CCC-576 reminder, top eligible aid programs
+6. **Evacuation Go-Bag Checklist** — 6 categories (Personal, Documents, Animals, Farm Records, Vehicle Prep, Don't Forget) with ~30 actionable items farmers should grab before leaving the property
+7. Emergency contacts — 911, CAL FIRE, FSA office, assigned evac sites
+
+**Translation pipeline:**
+
+| Concern | Solution |
+|---|---|
+| 10 target languages | `deep-translator` — free Google web endpoint, no API key, ~80s per non-English render |
+| CJK / Devanagari / Vietnamese render as `■` boxes | Per-language Unicode font registration: `STSong-Light` (zh-CN), `HYSMyeongJo-Medium` (ko), `Arial Unicode.ttf` (vi/hi/ar/everything else); Helvetica for en/es/fr/pt/tl |
+| Arabic shows isolated letters in wrong direction | `arabic-reshaper` (joins to connected forms) + `python-bidi` (visual reorder) before rendering; HTML markup stripped pre-bidi to keep XML well-formed |
+| All-caps "CRITICAL" mistranslated as "wonderful" in Vietnamese | Title-case the threat level word inside prose so translator reads it as an adjective, not an exclamation |
+
+Supported languages: `en`, `es`, `zh-CN`, `vi`, `tl`, `ko`, `ar`, `hi`, `fr`, `pt`.
+
+---
+
+## Frontend Dashboard
+
+Four pages, all sharing the same cream/green theme, 56px header, and `:root` design tokens. Click flow: setup → dashboard → financial → plan.
+
+| Page | URL | What's there |
+|------|-----|-------------|
+| **Setup** | `/static/setup.html` | 3-step onboarding: farm name + Leaflet map pin + acres → pens (species/count/age/health) → fields (crop/acres/planting date). Light theme, 🌱 Reeboot logo. Posts to `/api/setup`. |
+| **Dashboard** | `/static/dashboard.html` (also `/`) | Live threat dashboard: Leaflet map with fire markers + spread ellipses, threat gauge, wind card, timeline slider. **Bottom grid: Act Now → Your Farm → What's at Risk.** Yellow setup-incomplete banner shown if `.farm_setup_done` is missing. |
+| **Financial** | `/static/financial.html` | KPI row, exposure donut, ROI bar charts, action queue, aid-program table with deadlines, **CCC-576 insurance card** (PDF preview tile + fields-filled progress bar + Download PDF CTA). Pen count in header chip; SVG flame badge with dynamic threat coloring. |
+| **Plan** | `/static/briefing.html` | Action briefing download/email page. Twin panels: language-selector + Download briefing button, recipient-email + ✉ Send briefing button. Visible go-bag checklist preview. Triggers n8n webhook on send. |
+
+The emergency bar is the same across pages — single **↻ Refresh all agents** button calls `/api/run-pipeline`. Per-agent buttons removed in favor of the orchestrator.
+
+---
+
+## Backend API
+
+All endpoints are FastAPI handlers in `backend/main.py`. Read endpoints return cached JSON; run endpoints kick off subprocesses.
+
+### Read endpoints
+
+| Method | Path | Returns |
+|--------|------|---------|
+| GET | `/api/setup/status` | `{complete: bool}` |
+| GET | `/api/farm-profile` | farm_profile.json contents (pens, infrastructure, total_acres) |
+| GET | `/api/status` | latest forecaster status.json (threat, fire, weather, gate, spread) |
+| GET | `/api/fires` | live NASA FIRMS GeoJSON for California |
+| GET | `/api/spread?fire_lat=&fire_lon=&fire_frp=` | Rothermel ellipses at 6h/12h/24h |
+| GET | `/api/impact?target_lat=&target_lon=` | nearest fire + haversine distance + time-to-impact |
+| GET | `/api/livestock/status` | livestock_status.json |
+| GET | `/api/crop/status` | latest crop output (normalized: `field_decisions`, `fire_reduction`, `economic_impact`, `hydration_strategy`) |
+| GET | `/api/econ` | econ_report.json (exposure + ROI action queue) |
+| GET | `/api/policy` | policy_report.json (eligible aid programs) |
+| GET | `/api/insurance/status` | metadata for filled CCC-576 (filename, size, fields-filled count, fsa_office, deadline_days) |
+| GET | `/api/insurance/pdf` | streams filled CCC-576 PDF as download |
+| GET | `/api/report/status` | metadata for English action briefing |
+| GET | `/api/report/languages` | dropdown source: `[{code, label}, …]` |
+| GET | `/api/report/pdf?lang=` | streams briefing PDF (auto-generates if missing) |
+
+### Action endpoints
+
+| Method | Path | Effect |
+|--------|------|--------|
+| POST | `/api/setup` | Writes farm_config.json, farm_profile.json, farm_fields.json from form data |
+| POST | `/api/run-forecaster` | Runs forecaster cycle alone — writes status.json |
+| POST | `/api/livestock/run` | Syncs forecaster data, runs livestock_agent.py subprocess |
+| POST | `/api/crop/run` | Runs crop_agent.py subprocess (Groq LLM) |
+| POST | `/api/insurance/run` | Generates filled CCC-576 PDF |
+| POST | `/api/report/run?lang=` | Generates action briefing in target language |
+| POST | `/api/report/email` | Triggers n8n webhook with PDF + summary (see below) |
+| **POST** | **`/api/run-pipeline`** | **Orchestrated end-to-end run — see next section** |
+
+---
+
+## End-to-End Pipeline
+
+`POST /api/run-pipeline` is the single button-press endpoint that runs the whole chain:
+
+```
+forecaster_cycle()
+   │ writes status.json
+   ▼
+asyncio.gather(                          ← parallel
+    crop_subprocess(),                   ← Groq LLM, ~30-60s
+    livestock_subprocess(),              ← OSRM routes + CalOES, ~30-60s
+)
+   │ outputs land in disk
+   ▼
+econ_subprocess()                        ← reads live crop + livestock output
+   │ writes econ_report.json
+   ▼
+insurance_subprocess()                   ← fills CCC-576 PDF
+   │
+   ▼
+report_subprocess(lang="en")             ← combined briefing PDF
+   │
+   ▼
+returns {forecaster, crop, livestock, econ, insurance, report, data_sources}
+```
+
+Total wall time ~60-180s depending on Groq latency and OSRM routing. Each subprocess is independent and graceful on failure — if Groq rate-limits, crop returns `{"error": …}`, econ falls back to mock crop data, the rest of the pipeline keeps going.
+
+**Crop output filename quirk:** the crop agent writes `crop_agent/output_<timestamp>.json` (not `crop_agent_output_*.json`). The econ agent's loader globs both patterns; the on-disk path is what's actually used.
+
+---
+
+## n8n Webhook Integration
+
+The Send-briefing button on `/static/briefing.html` POSTs to `/api/report/email`, which fires a **GET request to your n8n webhook** with the briefing payload. n8n then does whatever you've wired (Gmail node, Slack node, SMS, Notion, etc.) — the backend's job is just to package and deliver.
+
+Default URL is hardcoded in `backend/main.py` (`N8N_WEBHOOK_DEFAULT`); override with `N8N_WEBHOOK_URL` in `.env`.
+
+**Request shape** — query params (small) + JSON body (full payload):
+
+```
+GET https://<your-n8n-host>/webhook/<id>
+    ?recipient=name@example.com&language=en&filename=action_briefing.pdf
+
+Body:
+{
+  "recipient":   "name@example.com",
+  "subject":     "Wildfire Action Briefing — English",
+  "language":    "en",
+  "note":        "",
+  "filename":    "action_briefing.pdf",
+  "pdf_base64":  "JVBERi0xLjQK…",        ← decode in n8n for an attachment
+  "generated_at":"2026-05-09T10:11:00Z",
+  "summary": {
+    "farm_name": "…", "threat_level": "CRITICAL",
+    "nearest_fire": { "name": "…", "distance_km": 35.97, "frp_mw": 4.53 },
+    "time_to_impact_hours": null, "fwi": 0.61, "wind_kmh": 2.5,
+    "animals_at_risk": 50, "animals_can_evacuate": 50, "livestock_value_usd": 72500,
+    "total_exposure_usd": 72500,
+    "crop_decisions": [{"field":"F1","crop":"avocado","decision":"HARVEST NOW"}],
+    "top_actions":    [{"action":"…","urgency":"HIGH","roi":96.7,"loss_avoided_usd":72500,"cost_usd":750}],
+    "top_aid_programs":[{"name":"…","agency":"USDA-FSA","deadline":null,"status":"confirmed"}],
+    "insurance_pdf_ready": true
+  }
+}
+```
+
+The summary is intentionally compact — drops polygon coords, route waypoints, full LLM rationale. n8n receives ~14 headline fields plus the rendered PDF.
+
+In your n8n workflow, after the Webhook trigger:
+1. **Code node** decodes `pdf_base64` to binary: `return [{ binary: { data: { data: $json.body.pdf_base64, mimeType: 'application/pdf', fileName: $json.body.filename } } }];`
+2. **Gmail / SMTP / SendGrid node** uses `{{$json.body.recipient}}`, `{{$json.body.subject}}`, `{{$json.body.body}}` and the binary attachment
+
+Test webhooks (`/webhook-test/...`) only accept one call per "Listen for test event" arming. Use the production URL (`/webhook/...` with the workflow Active) for repeated firing.
+
+---
+
+## Multilingual Action Briefing
+
+The briefing PDF is generated in **10 languages**: English, Spanish, Chinese (Simplified), Vietnamese, Tagalog (Filipino), Korean, Arabic, Hindi, French, Portuguese. Selected on the Plan page; passed as `?lang=…` to the API.
+
+**Translation:** `deep-translator` — free Google web endpoint, ~80s per non-English render, ~75–110 string cache hits per language.
+
+**Font handling:**
+
+| Language(s) | Font | Why |
+|---|---|---|
+| en, es, fr, pt, tl | Helvetica (default) | Latin-1 supplement covers all required glyphs |
+| zh-CN | `STSong-Light` (built-in CID) | Simplified Chinese; no external file needed |
+| ko | `HYSMyeongJo-Medium` (built-in CID) | Korean Hangul; no external file needed |
+| vi, hi, ar, others | `Arial Unicode.ttf` (system) | ~50,000 glyphs; covers Latin Extended Additional, Devanagari, Arabic, etc. |
+
+**Arabic RTL pipeline:** `arabic-reshaper` joins isolated letters → connected forms; `python-bidi` applies the Unicode bidi algorithm for correct visual order. HTML `<b>` markup is stripped pre-bidi (it would break char-reordering and produce malformed XML).
+
+**Why prose, not tables:** the report deliberately uses flowing paragraphs and bulleted sentences instead of KPI grids. Translators give much better output when each cell carries full sentence context — for example, "pen" alone translates to "Bolígrafo" (writing pen) in Spanish, but "the per-pen evacuation plan" correctly resolves to "el plan de evacuación por corral" (livestock pen).
 
 ---
 
 ## Running the System
 
+### Server (recommended)
+
 ```bash
-# Forecasting agent — mock scenario
-cd forecaster
-python forecaster.py --scenario fire_threat     # writes output/status.json + wake_up_packet.json
-python forecaster.py --scenario no_fire
+# Run the whole stack in one command — all agents are exposed as endpoints
+uvicorn backend.main:app --port 8000 --app-dir /path/to/Reeboot_th_earth
 
-# Forecasting agent — real APIs (requires .env)
-python forecaster.py --use-real-data
-
-# Econ agent
-python agents/econ_agent.py                     # requires crop agent output or uses mock
-python agents/econ_agent.py --dry-run           # uses bundled mock crop data, no APIs
-
-# Policy agent
-python agents/policy_agent.py                   # live FEMA + Grants.gov APIs
-python agents/policy_agent.py --dry-run         # no network calls
-
-# Insurance agent — fills USDA CCC-576 Notice of Loss
-python agents/insurance_agent.py               # reads output/*.json, writes output/ccc_576_filled.pdf
-python agents/insurance_agent.py --dry-run    # uses mock data if output files missing
-
-# Map backend
-cd backend
-uvicorn main:app --reload                       # requires NASA_FIRMS_API_KEY in .env
+# Visit http://localhost:8000/  (redirects to setup.html if not configured)
 ```
 
-API keys go in `forecaster/.env` — copy from `forecaster/.env.example`.
+### CLI agents (for debugging / one-off runs)
+
+```bash
+# Forecaster
+cd forecaster
+python forecaster.py --scenario fire_threat       # mock
+python forecaster.py --use-real-data              # live NASA FIRMS + Open-Meteo
+
+# Econ agent
+python -m forecaster.agents.econ_agent            # reads live crop + livestock output
+python -m forecaster.agents.econ_agent --dry-run  # mock data
+
+# Policy agent
+python -m forecaster.agents.policy_agent          # live FEMA + Grants.gov + Tavily
+python -m forecaster.agents.policy_agent --dry-run
+
+# Insurance agent
+python -m forecaster.agents.insurance_agent       # writes ccc_576_filled.pdf
+
+# Report agent (action briefing)
+python -m forecaster.agents.report_agent                  # English
+python -m forecaster.agents.report_agent --lang es        # Spanish
+python -m forecaster.agents.report_agent --lang zh-CN     # Chinese
+python -m forecaster.agents.report_agent --lang ar        # Arabic (RTL applied)
+```
+
+### Environment
+
+API keys go in `.env` at the **project root** (not inside `forecaster/`). Copy from `.env.example`:
+
+```bash
+cp .env.example .env
+# Edit with real values
+```
+
+Required: `NASA_FIRMS_API_KEY`, `GROQ_API_KEY`. Optional: `TAVILY_API_KEY` (policy enrichment), `USDA_NASS_API_KEY` (crop prices), `OPENET_API_KEY` (soil moisture), `N8N_WEBHOOK_URL` (override default).
+
+### Python dependencies
+
+```
+fastapi, uvicorn, httpx, python-dotenv, pydantic        # web stack
+pypdf, reportlab                                        # PDF I/O + generation
+deep-translator                                         # report translation
+arabic-reshaper, python-bidi                            # Arabic RTL handling
+groq                                                    # crop agent LLM
+```
 
 ---
 
