@@ -13,8 +13,10 @@ import httpx
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import List, Optional
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -95,6 +97,8 @@ async def _fetch_firms_csv(area: str) -> list[dict]:
 
 @app.get("/")
 def index():
+    if not SETUP_SENTINEL.exists():
+        return RedirectResponse("/static/setup.html")
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
@@ -237,6 +241,141 @@ FARM_LAT = 33.2232
 FARM_LON = -117.1611
 FORECASTER_DIR = Path(__file__).parent.parent / "forecaster"
 STATUS_JSON     = FORECASTER_DIR / "output" / "status.json"
+
+
+# ---------------------------------------------------------------------------
+# Setup / onboarding
+# ---------------------------------------------------------------------------
+
+FARM_CONFIG_PATH  = FORECASTER_DIR / "config" / "farm_config.json"
+LIVESTOCK_DIR_CFG = Path(__file__).parent.parent / "Livestock"
+CROP_DIR_CFG      = Path(__file__).parent.parent / "crop_agent"
+
+SETUP_SENTINEL = Path(__file__).parent.parent / ".farm_setup_done"
+
+
+class PenInput(BaseModel):
+    species: str          # cattle | horse | sheep | pig | goat
+    count: int
+    age: str              # adult | juvenile | mixed
+    health: str           # healthy | mixed | sick
+    name: Optional[str] = None
+
+
+class FieldInput(BaseModel):
+    crop: str             # avocado | citrus | strawberries | tomatoes | wheat | ...
+    acres: float
+    planting_date: str    # YYYY-MM-DD
+
+
+class SetupInput(BaseModel):
+    farm_name: str
+    lat: float
+    lon: float
+    total_acres: float
+    trailers: int = 2
+    vehicle_capacity: int = 100
+    pens: List[PenInput]
+    fields: List[FieldInput]
+
+
+@app.get("/api/setup/status")
+def setup_status():
+    return JSONResponse({"complete": SETUP_SENTINEL.exists()})
+
+
+@app.post("/api/setup")
+async def run_setup(data: SetupInput):
+    """Write farm_config.json, farm_profile.json, farm_fields.json from form data,
+    then run the forecaster with the provided location."""
+
+    farm_id = "farm_001"
+    lat, lon = data.lat, data.lon
+
+    # ── 1. forecaster/config/farm_config.json ──
+    deg = 0.005  # ~0.5 km offset per zone
+    farm_config = {
+        "farm_id": farm_id,
+        "farm_name": data.farm_name,
+        "location": {"lat": lat, "lon": lon, "region": "southern_california", "state": "CA", "county": "San Diego"},
+        "farmer_risk_tolerance": "moderate",
+        "custom_thresholds": {"fire_distance_km": 100, "fwi_trigger": 9, "vegetation_stress_sigma": -1.5},
+        "hard_safety_floor": {"fire_distance_km": 75, "fwi_trigger": 12, "spread_rate_km_per_day": 5, "multi_signal_convergence": True},
+        "affected_zones": [
+            {
+                "zone_id": "Z1", "name": "North Zone",
+                "polygon": {"type": "Polygon", "coordinates": [[[lon - deg, lat + deg], [lon + deg, lat + deg], [lon + deg, lat], [lon - deg, lat], [lon - deg, lat + deg]]]},
+                "crops": list({f.crop for f in data.fields[:len(data.fields)//2 + 1]}),
+                "animals": sum(p.count for p in data.pens[:len(data.pens)//2 + 1]),
+                "harvest_readiness": 0.6,
+            },
+            {
+                "zone_id": "Z2", "name": "South Zone",
+                "polygon": {"type": "Polygon", "coordinates": [[[lon - deg, lat], [lon + deg, lat], [lon + deg, lat - deg], [lon - deg, lat - deg], [lon - deg, lat]]]},
+                "crops": list({f.crop for f in data.fields[len(data.fields)//2:]}),
+                "animals": sum(p.count for p in data.pens[len(data.pens)//2:]),
+                "harvest_readiness": 0.4,
+            },
+        ],
+    }
+    FARM_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(FARM_CONFIG_PATH, "w") as f:
+        json.dump(farm_config, f, indent=2)
+
+    # ── 2. Livestock/farm_profile.json ──
+    pens_json = []
+    for i, pen in enumerate(data.pens):
+        zone = "Z1" if i < len(data.pens) // 2 + 1 else "Z2"
+        offset_lat = lat + (0.008 if zone == "Z1" else -0.004) + (i * 0.002)
+        offset_lon = lon + (i % 2) * 0.003 - 0.001
+        pens_json.append({
+            "pen_id": f"pen_{i+1:03d}",
+            "zone": zone,
+            "name": pen.name or f"{pen.species.title()} Pen {i+1}",
+            "species": pen.species,
+            "count": pen.count,
+            "age_distribution": pen.age,
+            "health_status": pen.health,
+            "avg_market_value_usd": {"cattle": 1450, "horse": 3500, "sheep": 350, "pig": 550, "goat": 300}.get(pen.species, 1000),
+            "centroid": {"lat": round(offset_lat, 5), "lon": round(offset_lon, 5)},
+        })
+
+    farm_profile = {
+        "farm_id": farm_id,
+        "farm_name": data.farm_name,
+        "centroid": {"lat": lat, "lon": lon},
+        "total_acres": data.total_acres,
+        "pens": pens_json,
+        "infrastructure": {
+            "water_sources": 2,
+            "vehicle_capacity_head": data.vehicle_capacity,
+            "available_trailers": data.trailers,
+        },
+    }
+    with open(LIVESTOCK_DIR_CFG / "farm_profile.json", "w") as f:
+        json.dump(farm_profile, f, indent=2)
+
+    # ── 3. crop_agent/farm_fields.json ──
+    fields_json = []
+    for i, field in enumerate(data.fields):
+        offset_lat = lat + (0.003 - i * 0.003)
+        offset_lon = lon + (i % 2) * 0.004 - 0.002
+        fields_json.append({
+            "field_id": f"F{i+1}",
+            "crop_category": field.crop,
+            "location": {"lat": round(offset_lat, 5), "lon": round(offset_lon, 5)},
+            "size_acres": field.acres,
+            "planting_date": field.planting_date,
+        })
+
+    farm_fields = {"farm_id": farm_id, "farm_name": data.farm_name, "fields": fields_json}
+    with open(CROP_DIR_CFG / "farm_fields.json", "w") as f:
+        json.dump(farm_fields, f, indent=2)
+
+    # ── 4. Mark setup done ──
+    SETUP_SENTINEL.touch()
+
+    return JSONResponse({"ok": True, "farm_id": farm_id, "lat": lat, "lon": lon})
 
 
 @app.get("/api/status")

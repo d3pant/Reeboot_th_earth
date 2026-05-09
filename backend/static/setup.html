@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Farm Setup — Reeboot the Earth</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: #080808; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+
+    /* ── Top bar ── */
+    .topbar { width: 100%; padding: 0 32px; height: 52px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(10,10,10,0.9); position: sticky; top: 0; z-index: 100; }
+    .topbar h1 { font-size: 15px; font-weight: 600; color: #fff; }
+    .topbar span { font-size: 12px; color: #555; }
+
+    /* ── Step indicator ── */
+    .steps { display: flex; gap: 0; margin: 36px 0 0; }
+    .step-dot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .step-dot .circle { width: 28px; height: 28px; border-radius: 50%; background: #1a1a1a; border: 2px solid #2a2a2a; color: #444; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .step-dot.active .circle { background: #e74c3c; border-color: #e74c3c; color: #fff; }
+    .step-dot.done .circle { background: #00cc55; border-color: #00cc55; color: #fff; }
+    .step-dot .label { font-size: 10px; color: #444; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+    .step-dot.active .label { color: #aaa; }
+    .step-line { width: 60px; height: 2px; background: #1a1a1a; align-self: center; margin: 0 4px; margin-bottom: 22px; transition: background 0.2s; }
+    .step-line.done { background: #00cc55; }
+
+    /* ── Card ── */
+    .card { width: 100%; max-width: 680px; background: #111; border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 32px; margin: 28px 0 48px; }
+    .card h2 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .card .sub { font-size: 13px; color: #555; margin-bottom: 28px; }
+
+    /* ── Form elements ── */
+    .field-group { margin-bottom: 20px; }
+    .field-group label { display: block; font-size: 11px; color: #555; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 7px; }
+    input[type="text"], input[type="number"], input[type="date"], select {
+      width: 100%; background: #0d0d0d; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      color: #e0e0e0; padding: 10px 13px; font-size: 14px; outline: none; transition: border-color 0.15s;
+      font-family: inherit; -webkit-appearance: none;
+    }
+    input:focus, select:focus { border-color: rgba(231,76,60,0.5); }
+    select option { background: #111; }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+    /* ── Map picker ── */
+    #location-map { width: 100%; height: 240px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); margin-top: 8px; }
+    .map-hint { font-size: 11px; color: #444; margin-top: 6px; }
+
+    /* ── Dynamic list items ── */
+    .item-list { display: flex; flex-direction: column; gap: 12px; }
+    .item-card { background: #0d0d0d; border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 16px; position: relative; }
+    .item-card .remove-btn { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #333; cursor: pointer; font-size: 16px; line-height: 1; transition: color 0.15s; }
+    .item-card .remove-btn:hover { color: #e74c3c; }
+    .item-card h4 { font-size: 12px; color: #555; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px; }
+
+    .add-btn { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.12); border-radius: 8px; color: #555; padding: 10px 16px; cursor: pointer; font-size: 13px; width: 100%; justify-content: center; transition: all 0.15s; margin-top: 10px; font-family: inherit; }
+    .add-btn:hover { background: rgba(255,255,255,0.07); color: #aaa; border-color: rgba(255,255,255,0.2); }
+
+    /* ── Navigation ── */
+    .nav { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; }
+    .btn-back { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #aaa; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit; transition: all 0.15s; }
+    .btn-back:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .btn-next { background: #e74c3c; border: none; color: #fff; padding: 10px 28px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; transition: all 0.15s; }
+    .btn-next:hover { background: #c0392b; }
+    .btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Summary ── */
+    .summary-section { margin-bottom: 20px; }
+    .summary-section h3 { font-size: 11px; color: #444; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; }
+    .summary-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+    .summary-row .sk { color: #666; }
+    .summary-row .sv { color: #ccc; }
+    .chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin: 2px; }
+    .chip.cattle { background: rgba(220,38,38,0.2); color: #f87171; }
+    .chip.horse { background: rgba(234,88,12,0.2); color: #fb923c; }
+    .chip.sheep { background: rgba(37,99,235,0.2); color: #60a5fa; }
+    .chip.pig { background: rgba(147,51,234,0.2); color: #c084fc; }
+    .chip.goat { background: rgba(22,163,74,0.2); color: #4ade80; }
+    .chip.crop { background: rgba(234,179,8,0.15); color: #fcd34d; }
+
+    .success-icon { font-size: 52px; text-align: center; margin-bottom: 16px; }
+    .launch-btn { width: 100%; background: #e74c3c; border: none; color: #fff; padding: 14px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 20px; transition: background 0.15s; letter-spacing: 0.02em; }
+    .launch-btn:hover { background: #c0392b; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🔥 Reeboot the Earth</h1>
+  <span>Farm Setup</span>
+</div>
+
+<div class="steps" id="steps">
+  <div class="step-dot active" id="dot-1"><div class="circle">1</div><div class="label">Location</div></div>
+  <div class="step-line" id="line-1"></div>
+  <div class="step-dot" id="dot-2"><div class="circle">2</div><div class="label">Livestock</div></div>
+  <div class="step-line" id="line-2"></div>
+  <div class="step-dot" id="dot-3"><div class="circle">3</div><div class="label">Crops</div></div>
+  <div class="step-line" id="line-3"></div>
+  <div class="step-dot" id="dot-4"><div class="circle">4</div><div class="label">Confirm</div></div>
+</div>
+
+<div class="card" id="card"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const state = {
+  step: 1,
+  farm_name: "", lat: 33.2232, lon: -117.1611, total_acres: 100,
+  trailers: 2, vehicle_capacity: 100,
+  pens: [], fields: [],
+};
+
+const SPECIES = ["cattle","horse","sheep","pig","goat"];
+const CROPS   = ["avocado","citrus","strawberries","tomatoes","wheat","corn","alfalfa","grapes","almonds","potatoes","cover_crop"];
+const SPECIES_EMOJI = { cattle:"🐄", horse:"🐴", sheep:"🐑", pig:"🐷", goat:"🐐" };
+const CROP_EMOJI    = { avocado:"🥑", citrus:"🍊", strawberries:"🍓", tomatoes:"🍅", wheat:"🌾", corn:"🌽", alfalfa:"🌿", grapes:"🍇", almonds:"🥜", potatoes:"🥔", cover_crop:"🌱" };
+
+let mapInstance = null;
+let markerInstance = null;
+
+function updateSteps() {
+  for (let i = 1; i <= 4; i++) {
+    const dot = document.getElementById(`dot-${i}`);
+    dot.className = "step-dot" + (i === state.step ? " active" : i < state.step ? " done" : "");
+    if (i < 4) {
+      document.getElementById(`line-${i}`).className = "step-line" + (i < state.step ? " done" : "");
+    }
+  }
+}
+
+function render() {
+  updateSteps();
+  const card = document.getElementById("card");
+  if (state.step === 1) card.innerHTML = step1Html();
+  else if (state.step === 2) card.innerHTML = step2Html();
+  else if (state.step === 3) card.innerHTML = step3Html();
+  else card.innerHTML = step4Html();
+
+  if (state.step === 1) initMap();
+}
+
+// ── Step 1: Location ──────────────────────────────────────────────────────────
+function step1Html() {
+  return `
+    <h2>Where is your farm?</h2>
+    <p class="sub">Click the map to pin your farm location, or enter coordinates directly.</p>
+
+    <div class="field-group">
+      <label>Farm Name</label>
+      <input type="text" id="f-name" value="${state.farm_name}" placeholder="e.g. Vista Verde Ranch" oninput="state.farm_name=this.value" />
+    </div>
+
+    <div class="row-2">
+      <div class="field-group">
+        <label>Latitude</label>
+        <input type="number" id="f-lat" step="0.0001" value="${state.lat}" oninput="updateLatLon()" />
+      </div>
+      <div class="field-group">
+        <label>Longitude</label>
+        <input type="number" id="f-lon" step="0.0001" value="${state.lon}" oninput="updateLatLon()" />
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Total Farm Size (acres)</label>
+      <input type="number" id="f-acres" min="1" value="${state.total_acres}" oninput="state.total_acres=parseFloat(this.value)||1" />
+    </div>
+
+    <div id="location-map"></div>
+    <p class="map-hint">Click anywhere on the map to set your farm location</p>
+
+    <div class="nav">
+      <div></div>
+      <button class="btn-next" onclick="goNext1()">Next: Livestock →</button>
+    </div>`;
+}
+
+function initMap() {
+  if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+  mapInstance = L.map("location-map", { zoomControl: true }).setView([state.lat, state.lon], 12);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: "© OpenStreetMap © CARTO", maxZoom: 18,
+  }).addTo(mapInstance);
+
+  const icon = L.divIcon({
+    className: "",
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:#00cc55;border:2px solid #fff;box-shadow:0 0 8px #00cc5588;"></div>`,
+    iconSize: [14,14], iconAnchor: [7,7],
+  });
+  markerInstance = L.marker([state.lat, state.lon], { icon, draggable: true }).addTo(mapInstance);
+  markerInstance.on("dragend", () => {
+    const ll = markerInstance.getLatLng();
+    state.lat = Math.round(ll.lat * 10000) / 10000;
+    state.lon = Math.round(ll.lng * 10000) / 10000;
+    document.getElementById("f-lat").value = state.lat;
+    document.getElementById("f-lon").value = state.lon;
+  });
+  mapInstance.on("click", e => {
+    state.lat = Math.round(e.latlng.lat * 10000) / 10000;
+    state.lon = Math.round(e.latlng.lng * 10000) / 10000;
+    markerInstance.setLatLng([state.lat, state.lon]);
+    document.getElementById("f-lat").value = state.lat;
+    document.getElementById("f-lon").value = state.lon;
+  });
+}
+
+function updateLatLon() {
+  state.lat = parseFloat(document.getElementById("f-lat").value) || state.lat;
+  state.lon = parseFloat(document.getElementById("f-lon").value) || state.lon;
+  if (markerInstance) markerInstance.setLatLng([state.lat, state.lon]);
+  if (mapInstance) mapInstance.setView([state.lat, state.lon]);
+}
+
+function goNext1() {
+  state.farm_name = document.getElementById("f-name").value.trim() || "My Farm";
+  state.total_acres = parseFloat(document.getElementById("f-acres").value) || 100;
+  state.step = 2;
+  if (state.pens.length === 0) state.pens.push({ species:"cattle", count:50, age:"adult", health:"healthy", name:"" });
+  render();
+}
+
+// ── Step 2: Livestock ─────────────────────────────────────────────────────────
+function step2Html() {
+  const items = state.pens.map((p, i) => penCardHtml(p, i)).join("");
+  return `
+    <h2>Livestock Inventory</h2>
+    <p class="sub">Add each group of animals. You can add multiple pens per species.</p>
+
+    <div class="item-list" id="pen-list">${items}</div>
+    <button class="add-btn" onclick="addPen()">+ Add Another Pen</button>
+
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.06);">
+      <div class="row-2">
+        <div class="field-group">
+          <label>Available Trailers</label>
+          <input type="number" id="f-trailers" min="0" value="${state.trailers}" oninput="state.trailers=parseInt(this.value)||0" />
+        </div>
+        <div class="field-group">
+          <label>Vehicle Capacity (head)</label>
+          <input type="number" id="f-vcap" min="1" value="${state.vehicle_capacity}" oninput="state.vehicle_capacity=parseInt(this.value)||50" />
+        </div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <button class="btn-next" onclick="goNext2()">Next: Crops →</button>
+    </div>`;
+}
+
+function penCardHtml(p, i) {
+  const specOpts = SPECIES.map(s => `<option value="${s}" ${s===p.species?"selected":""}>${SPECIES_EMOJI[s]} ${s}</option>`).join("");
+  return `<div class="item-card" id="pen-card-${i}">
+    <button class="remove-btn" onclick="removePen(${i})">✕</button>
+    <h4>Pen ${i+1}</h4>
+    <div class="row-3">
+      <div class="field-group" style="margin:0">
+        <label>Species</label>
+        <select onchange="updatePen(${i},'species',this.value)">${specOpts}</select>
+      </div>
+      <div class="field-group" style="margin:0">
+        <label>Count</label>
+        <input type="number" min="1" value="${p.count}" oninput="updatePen(${i},'count',parseInt(this.value)||1)" />
+      </div>
+      <div class="field-group" style="margin:0">
+        <label>Age</label>
+        <select onchange="updatePen(${i},'age',this.value)">
+          ${["adult","juvenile","mixed"].map(a=>`<option value="${a}" ${a===p.age?"selected":""}>${a}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="field-group" style="margin-top:12px;margin-bottom:0">
+      <label>Health Status</label>
+      <select onchange="updatePen(${i},'health',this.value)">
+        ${["healthy","mixed","sick"].map(h=>`<option value="${h}" ${h===p.health?"selected":""}>${h}</option>`).join("")}
+      </select>
+    </div>
+  </div>`;
+}
+
+function updatePen(i, key, val) { state.pens[i][key] = val; }
+function addPen() {
+  state.pens.push({ species:"cattle", count:20, age:"adult", health:"healthy", name:"" });
+  document.getElementById("pen-list").innerHTML = state.pens.map((p,i) => penCardHtml(p,i)).join("");
+}
+function removePen(i) {
+  if (state.pens.length <= 1) return;
+  state.pens.splice(i, 1);
+  document.getElementById("pen-list").innerHTML = state.pens.map((p,i) => penCardHtml(p,i)).join("");
+}
+function goNext2() {
+  state.trailers = parseInt(document.getElementById("f-trailers").value) || 2;
+  state.vehicle_capacity = parseInt(document.getElementById("f-vcap").value) || 100;
+  state.step = 3;
+  if (state.fields.length === 0) state.fields.push({ crop:"avocado", acres:20, planting_date:"2023-01-01" });
+  render();
+}
+
+// ── Step 3: Crops ─────────────────────────────────────────────────────────────
+function step3Html() {
+  const items = state.fields.map((f, i) => fieldCardHtml(f, i)).join("");
+  return `
+    <h2>Crop Fields</h2>
+    <p class="sub">Add each field. Planting date is used to calculate harvest maturity.</p>
+
+    <div class="item-list" id="field-list">${items}</div>
+    <button class="add-btn" onclick="addField()">+ Add Another Field</button>
+
+    <div class="nav">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <button class="btn-next" onclick="goNext3()">Review →</button>
+    </div>`;
+}
+
+function fieldCardHtml(f, i) {
+  const cropOpts = CROPS.map(c => `<option value="${c}" ${c===f.crop?"selected":""}>${CROP_EMOJI[c]||"🌿"} ${c}</option>`).join("");
+  return `<div class="item-card" id="field-card-${i}">
+    <button class="remove-btn" onclick="removeField(${i})">✕</button>
+    <h4>Field ${i+1}</h4>
+    <div class="row-3">
+      <div class="field-group" style="margin:0">
+        <label>Crop</label>
+        <select onchange="updateField(${i},'crop',this.value)">${cropOpts}</select>
+      </div>
+      <div class="field-group" style="margin:0">
+        <label>Size (acres)</label>
+        <input type="number" min="0.1" step="0.1" value="${f.acres}" oninput="updateField(${i},'acres',parseFloat(this.value)||1)" />
+      </div>
+      <div class="field-group" style="margin:0">
+        <label>Planting Date</label>
+        <input type="date" value="${f.planting_date}" onchange="updateField(${i},'planting_date',this.value)" />
+      </div>
+    </div>
+  </div>`;
+}
+
+function updateField(i, key, val) { state.fields[i][key] = val; }
+function addField() {
+  state.fields.push({ crop:"tomatoes", acres:10, planting_date: new Date().toISOString().slice(0,10) });
+  document.getElementById("field-list").innerHTML = state.fields.map((f,i) => fieldCardHtml(f,i)).join("");
+}
+function removeField(i) {
+  if (state.fields.length <= 1) return;
+  state.fields.splice(i, 1);
+  document.getElementById("field-list").innerHTML = state.fields.map((f,i) => fieldCardHtml(f,i)).join("");
+}
+function goNext3() { state.step = 4; render(); }
+
+// ── Step 4: Confirm ───────────────────────────────────────────────────────────
+function step4Html() {
+  const penChips = state.pens.map(p => `<span class="chip ${p.species}">${SPECIES_EMOJI[p.species]} ${p.count} ${p.species}</span>`).join(" ");
+  const fieldChips = state.fields.map(f => `<span class="chip crop">${CROP_EMOJI[f.crop]||"🌿"} ${f.acres}ac ${f.crop}</span>`).join(" ");
+  const totalAnimals = state.pens.reduce((s,p) => s + p.count, 0);
+  const totalAcresCrop = state.fields.reduce((s,f) => s + f.acres, 0);
+
+  return `
+    <h2>Review & Save</h2>
+    <p class="sub">Double-check everything looks right before we set up your farm.</p>
+
+    <div class="summary-section">
+      <h3>Farm</h3>
+      <div class="summary-row"><span class="sk">Name</span><span class="sv">${state.farm_name}</span></div>
+      <div class="summary-row"><span class="sk">Location</span><span class="sv">${state.lat}°N, ${Math.abs(state.lon)}°W</span></div>
+      <div class="summary-row"><span class="sk">Total Size</span><span class="sv">${state.total_acres} acres</span></div>
+    </div>
+
+    <div class="summary-section">
+      <h3>Livestock — ${totalAnimals} animals, ${state.pens.length} pens</h3>
+      <div style="margin-top:6px">${penChips}</div>
+      <div class="summary-row" style="margin-top:12px"><span class="sk">Trailers</span><span class="sv">${state.trailers}</span></div>
+      <div class="summary-row"><span class="sk">Vehicle Capacity</span><span class="sv">${state.vehicle_capacity} head</span></div>
+    </div>
+
+    <div class="summary-section">
+      <h3>Crops — ${totalAcresCrop.toFixed(1)} acres, ${state.fields.length} fields</h3>
+      <div style="margin-top:6px">${fieldChips}</div>
+    </div>
+
+    <div class="nav">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+      <button class="btn-next" id="submit-btn" onclick="submitSetup()">Save & Launch Map →</button>
+    </div>`;
+}
+
+function goBack() { state.step = Math.max(1, state.step - 1); render(); }
+
+async function submitSetup() {
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true; btn.textContent = "Saving...";
+
+  const payload = {
+    farm_name: state.farm_name,
+    lat: state.lat,
+    lon: state.lon,
+    total_acres: state.total_acres,
+    trailers: state.trailers,
+    vehicle_capacity: state.vehicle_capacity,
+    pens: state.pens.map(p => ({ species: p.species, count: p.count, age: p.age, health: p.health, name: p.name || "" })),
+    fields: state.fields.map(f => ({ crop: f.crop, acres: f.acres, planting_date: f.planting_date })),
+  };
+
+  try {
+    const res = await fetch("/api/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || res.statusText);
+    }
+
+    // Show success then redirect
+    document.getElementById("card").innerHTML = `
+      <div class="success-icon">✅</div>
+      <h2 style="text-align:center">Farm configured!</h2>
+      <p class="sub" style="text-align:center;margin-bottom:0">
+        Your farm profile has been saved.<br>
+        Hit the button below to open the live wildfire map.
+      </p>
+      <button class="launch-btn" onclick="window.location='/'">🔥 Open Wildfire Map</button>`;
+    document.querySelector(".steps").style.display = "none";
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Save & Launch Map →";
+    alert(`Setup failed: ${e.message}`);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
