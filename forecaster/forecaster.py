@@ -287,18 +287,29 @@ class Forecaster:
         self._wifire: dict | None = None
         self._pyrecast: dict | None = None
         self._gate_assessment: dict = {}
+        self._spread_prediction: dict | None = None
 
     @staticmethod
     def _load_json(path: str | Path) -> dict:
         with open(path, "r") as f:
             return json.load(f)
 
-    def run_single_cycle(self, mock_scenario: str | None = None) -> tuple[dict, dict | None]:
-        """Execute one check cycle. Returns (status, wake_up_packet or None)."""
-        logger.info("=== Forecaster: starting single cycle (scenario=%s) ===", mock_scenario or "real")
+    def run_single_cycle(self, mock_scenario: str | None = None, location: dict | None = None) -> tuple[dict, dict | None]:
+        """Execute one check cycle. Returns (status, wake_up_packet or None).
+
+        Args:
+            mock_scenario: 'no_fire' | 'fire_threat' | None (real data)
+            location:      {'lat': float, 'lon': float} — overrides farm_config location
+        """
+        if location:
+            self.farm_config["location"] = {**self.farm_config["location"], **location}
+
+        logger.info("=== Forecaster: starting single cycle (scenario=%s, location=%s) ===",
+                    mock_scenario or "real", self.farm_config["location"])
 
         self.fetch_stage1_data(mock_scenario)
         self.evaluate_gate_condition()
+        self._compute_spread_prediction()
         self.write_status_json()
 
         if self.gate_condition_met:
@@ -321,7 +332,25 @@ class Forecaster:
         self._fwi = data["fwi"]
         self._fire = data["fire"]
         self._ndvi = data["ndvi_anomaly"]
-        self._weather = data["weather"]
+        # Always use real Open-Meteo weather even in mock mode
+        farm_loc = self.farm_config["location"]
+        try:
+            from data_sources.open_meteo import fetch_weather as fetch_om_weather
+            om = fetch_om_weather(farm_loc["lat"], farm_loc["lon"])
+            self._weather = {
+                "wind_speed_kmh":      om["wind_speed_kmh"],
+                "wind_direction_degrees": om["wind_direction_deg"],
+                "wind_gusts_kmh":      om["wind_gusts_kmh"],
+                "temperature_c":       om["temperature_c"],
+                "humidity_percent":    om["humidity_pct"],
+                "soil_moisture":       om["soil_moisture"],
+                "fetched_at":          om["fetched_at"],
+            }
+            logger.info("Real weather: wind %.1f km/h @ %d°, soil moisture %.3f",
+                        om["wind_speed_kmh"], om["wind_direction_deg"], om["soil_moisture"])
+        except Exception as e:
+            logger.warning("Open-Meteo fetch failed, using mock weather: %s", e)
+            self._weather = data["weather"]
         logger.info("Mock Stage 1: FWI=%.1f fire=%s NDVI=%.2f", self._fwi, self._fire["name"] if self._fire else "none", self._ndvi)
 
     def _fetch_real_stage1(self) -> None:
@@ -409,6 +438,81 @@ class Forecaster:
             logger.error("Pyrecast submission failed: %s", e)
             raise
 
+    def _compute_spread_prediction(self) -> None:
+        """Compute 6h/12h/24h spread ellipses for the nearest fire using Open-Meteo wind."""
+        if not self._fire:
+            self._spread_prediction = None
+            return
+
+        from models.spread_model import (
+            compute_ellipse, ellipse_to_geojson_polygon,
+            time_to_impact, head_rate_of_spread
+        )
+
+        fire_lat = self._fire["location"]["lat"]
+        fire_lon = self._fire["location"]["lon"]
+        frp      = self._fire.get("frp_mw") or self._fire.get("frp") or 0.0
+
+        # Fetch weather at fire location (Open-Meteo, no key needed)
+        try:
+            from data_sources.open_meteo import fetch_weather as fetch_om_weather
+            om = fetch_om_weather(fire_lat, fire_lon)
+            wind_kmh  = om["wind_speed_kmh"]
+            wind_dir  = om["wind_direction_deg"]
+            soil_m    = om["soil_moisture"]
+            logger.info("Spread model: wind %.1f km/h @ %d°, soil %.3f, FRP %.1f MW",
+                        wind_kmh, wind_dir, soil_m, frp)
+        except Exception as e:
+            logger.warning("Open-Meteo failed for spread model: %s — using stored weather", e)
+            w = self._weather or {}
+            wind_kmh = w.get("wind_speed_kmh", 15)
+            wind_dir = w.get("wind_direction_degrees", 0)
+            soil_m   = w.get("soil_moisture", 0.15)
+
+        # Compute ellipses for 3 horizons
+        horizons = {}
+        for hours in [6, 12, 24]:
+            ellipse = compute_ellipse(
+                fire_lat=fire_lat, fire_lon=fire_lon,
+                wind_direction_deg=wind_dir,
+                wind_kmh=wind_kmh,
+                soil_moisture=soil_m,
+                frp_mw=frp,
+                hours=hours,
+            )
+            horizons[f"{hours}h"] = {
+                "polygon": ellipse_to_geojson_polygon(ellipse),
+                "head_km": ellipse.head_km,
+                "back_km": ellipse.back_km,
+                "flank_km": ellipse.semi_minor_km,
+                "center": {"lat": ellipse.center_lat, "lon": ellipse.center_lon},
+            }
+
+        # Time-to-impact at farm location
+        farm_loc = self.farm_config["location"]
+        impact = time_to_impact(
+            fire_lat=fire_lat, fire_lon=fire_lon,
+            target_lat=farm_loc["lat"], target_lon=farm_loc["lon"],
+            wind_direction_deg=wind_dir,
+            wind_kmh=wind_kmh,
+            soil_moisture=soil_m,
+            frp_mw=frp,
+        )
+
+        self._spread_prediction = {
+            "model": "Rothermel (1972) simplified + Anderson (1983) ellipse",
+            "computed_at": _utc_now(),
+            "wind_speed_kmh": wind_kmh,
+            "wind_direction_deg": wind_dir,
+            "soil_moisture": soil_m,
+            "head_ros_kmh": head_rate_of_spread(wind_kmh, soil_m, frp),
+            "horizons": horizons,
+            "time_to_farm": impact,
+        }
+        logger.info("Spread: head ROS %.3f km/h, farm threatened=%s, ETA=%s h",
+                    self._spread_prediction["head_ros_kmh"],
+                    impact["threatened"], impact.get("hours"))
+
     def write_status_json(self) -> None:
         """Write status.json."""
         ga = self._gate_assessment
@@ -443,6 +547,7 @@ class Forecaster:
             "multi_signal_convergence": ga.get("convergence", False),
             "next_update_minutes": next_update,
             "stage_transition_triggered": self.gate_condition_met,
+            "spread_prediction": self._spread_prediction,
         }
 
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -511,8 +616,10 @@ def main() -> None:
     parser.add_argument(
         "--use-real-data",
         action="store_true",
-        help="Use real API calls instead of mock data (requires config/credentials.json)",
+        help="Use real API calls instead of mock data (requires .env with API keys)",
     )
+    parser.add_argument("--lat", type=float, default=None, help="Override location latitude")
+    parser.add_argument("--lon", type=float, default=None, help="Override location longitude")
     args = parser.parse_args()
 
     farm_config_path = CONFIG_DIR / "farm_config.json"
@@ -531,8 +638,9 @@ def main() -> None:
 
     forecaster = Forecaster(farm_config_path=farm_config_path)
 
+    location = {"lat": args.lat, "lon": args.lon} if args.lat and args.lon else None
     mock_scenario = None if args.use_real_data else args.scenario
-    status, wake_up_packet = forecaster.run_single_cycle(mock_scenario=mock_scenario)
+    status, wake_up_packet = forecaster.run_single_cycle(mock_scenario=mock_scenario, location=location)
 
     print("\n--- STATUS SUMMARY ---")
     print(f"  Threat Level  : {status['threat_level']}")
