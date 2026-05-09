@@ -15,14 +15,14 @@
       --orange:       #e67e22;
       --amber:        #f39c12;
       --blue:         #1d4ed8;
-      --cream:        #f2f4f7;
+      --cream:        #faf9f5;
       --card:         #ffffff;
-      --border:       #e4e6ea;
-      --text:         #111827;
-      --text2:        #4b5563;
-      --text3:        #9ca3af;
-      --radius:       18px;
-      --shadow:       0 4px 24px rgba(0,0,0,0.08);
+      --border:       #e8e6e0;
+      --text:         #1a1a1a;
+      --text2:        #5a5a5a;
+      --text3:        #9a9a9a;
+      --radius:       14px;
+      --shadow:       0 2px 12px rgba(0,0,0,0.07);
     }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); }
@@ -31,26 +31,29 @@
     #header {
       position: sticky; top: 0; z-index: 1000;
       background: var(--card); border-bottom: 1px solid var(--border);
-      padding: 0 28px; height: 60px;
+      padding: 0 24px; height: 56px;
       display: flex; align-items: center; gap: 8px;
     }
-    #logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 17px; color: var(--green); text-decoration: none; letter-spacing: -0.01em; }
+    #logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--green); text-decoration: none; }
     #logo span { font-size: 22px; }
-    #nav { display: flex; gap: 2px; margin-left: 24px; }
+    #nav { display: flex; gap: 2px; margin-left: 20px; }
     .nav-tab {
-      padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 500;
+      padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
       color: var(--text2); cursor: pointer; text-decoration: none;
       transition: all 0.15s; border: none; background: none;
       white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
     }
     .nav-tab:hover { background: var(--cream); color: var(--text); }
-    .nav-tab.active { background: var(--green); color: #fff; font-weight: 600; }
+    .nav-tab.active { background: var(--green); color: #fff; }
     #header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
     #threat-badge {
       display: flex; align-items: center; gap: 7px;
-      padding: 8px 16px; border-radius: 24px; font-size: 13px; font-weight: 700;
-      background: rgba(192,57,43,0.08); color: var(--fire); border: 1.5px solid rgba(192,57,43,0.2);
+      padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+      background: rgba(192,57,43,0.1); color: var(--fire); border: 1px solid rgba(192,57,43,0.2);
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
     }
+    #map-link { padding: 6px 13px; border-radius: 8px; font-size: 12px; font-weight: 500; color: var(--text3); text-decoration: none; border: 1px solid var(--border); }
+    #map-link:hover { color: var(--text); }
     #farm-info-chip {
       display: flex; align-items: center; gap: 8px; padding: 4px 12px;
       background: var(--cream); border: 1px solid var(--border); border-radius: 20px; font-size: 12px;
@@ -171,9 +174,149 @@
     .section-header { display: flex; justify-content: space-between; align-items: baseline; }
     .section-header h2 { font-size: 15px; font-weight: 700; }
     .section-header span { font-size: 12px; color: var(--text3); }
+
+    /* ── Insurance card ── */
+    #insurance-card {
+      background: linear-gradient(135deg, var(--card) 0%, #fafbfc 100%);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px; box-shadow: var(--shadow); margin-bottom: 24px;
+      position: relative; overflow: hidden;
+    }
+    #insurance-card::before {
+      content: ""; position: absolute; top: 0; right: 0; width: 240px; height: 240px;
+      background: radial-gradient(circle at top right, rgba(64,145,108,0.08), transparent 70%);
+      pointer-events: none;
+    }
+    .ins-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 16px; }
+    .ins-head-left { display: flex; align-items: center; gap: 14px; }
+    .ins-icon-wrap {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--green-light); color: var(--green);
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+      flex-shrink: 0;
+    }
+    .ins-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+    .ins-head p  { font-size: 12px; color: var(--text3); margin-top: 3px; }
+    .ins-status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 6px 12px; border-radius: 20px;
+      background: var(--green-light); color: var(--green); white-space: nowrap;
+    }
+    .ins-status-pill::before { content: "●"; color: var(--green2); }
+    .ins-status-pill.warn { background: #fef9c3; color: #854d0e; }
+    .ins-status-pill.warn::before { color: #ca8a04; }
+
+    .ins-body { display: grid; grid-template-columns: 168px 1fr; gap: 24px; align-items: stretch; }
+
+    /* PDF preview tile */
+    .ins-preview {
+      position: relative;
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 14px; display: flex; flex-direction: column; align-items: center;
+      gap: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .ins-preview-page {
+      position: relative;
+      width: 110px; height: 138px; background: #fff;
+      border: 1px solid var(--border); border-radius: 6px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+      padding: 10px 8px; overflow: hidden;
+    }
+    .ins-preview-page::before {
+      content: ""; position: absolute; top: 0; right: 0; width: 18px; height: 18px;
+      background: linear-gradient(135deg, transparent 50%, var(--cream) 50%);
+      border-left: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .ins-preview-line {
+      height: 4px; background: #d1d5db; border-radius: 2px; margin-bottom: 5px;
+    }
+    .ins-preview-line.short { width: 60%; }
+    .ins-preview-line.tiny  { width: 35%; background: #e5e7eb; }
+    .ins-preview-line.full  { width: 100%; }
+    .ins-preview-stamp {
+      position: absolute; bottom: 8px; left: 8px;
+      font-size: 7px; font-weight: 800; letter-spacing: 0.1em;
+      color: var(--green); border: 1.5px solid var(--green); padding: 2px 4px; border-radius: 3px;
+      transform: rotate(-6deg); opacity: 0.85;
+    }
+    .ins-preview-name { font-size: 11px; font-weight: 700; color: var(--text); }
+    .ins-preview-meta { font-size: 10px; color: var(--text3); }
+
+    /* Right column */
+    .ins-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .ins-meta-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 22px;
+    }
+    .ins-meta-row { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .ins-meta-label {
+      font-size: 10px; font-weight: 700; color: var(--text3);
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .ins-meta-val {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ins-meta-val.urgent { color: var(--fire); }
+
+    /* Progress bar */
+    .ins-progress-block {
+      background: var(--cream); border-radius: 12px; padding: 14px 16px;
+    }
+    .ins-progress-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .ins-progress-label { font-size: 12px; font-weight: 600; color: var(--text2); }
+    .ins-progress-count { font-size: 12px; font-weight: 700; color: var(--text); }
+    .ins-progress-bar {
+      height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;
+    }
+    .ins-progress-fill {
+      height: 100%; background: linear-gradient(90deg, var(--green2), var(--green));
+      border-radius: 3px; transition: width 0.6s ease;
+    }
+    .ins-progress-hint { font-size: 11px; color: var(--text3); margin-top: 8px; line-height: 1.5; }
+
+    /* CTA row */
+    .ins-cta-row {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px;
+    }
+    .ins-download {
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 12px 22px; background: var(--green); color: #fff;
+      border-radius: 12px; font-size: 14px; font-weight: 700; text-decoration: none;
+      box-shadow: 0 4px 14px rgba(45,106,79,0.3); transition: all 0.15s;
+      border: none; cursor: pointer; font-family: inherit;
+    }
+    .ins-download:hover { background: #265d44; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(45,106,79,0.35); }
+    .ins-download:active { transform: translateY(0); }
+    .ins-secondary {
+      font-size: 12px; font-weight: 600; color: var(--text2);
+      cursor: pointer; padding: 8px 14px; border-radius: 10px;
+      background: none; border: 1px solid var(--border); transition: all 0.15s; font-family: inherit;
+    }
+    .ins-secondary:hover { background: var(--cream); color: var(--text); }
+    .ins-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ins-empty {
+      grid-column: 1 / -1; padding: 28px; text-align: center;
+      background: var(--cream); border-radius: 12px; color: var(--text3); font-size: 13px;
+    }
+
+    @media (max-width: 720px) {
+      .ins-body { grid-template-columns: 1fr; }
+      .ins-meta-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
+
+<!-- ── Setup-incomplete banner ── -->
+<div id="setup-banner" style="display:none;position:sticky;top:0;z-index:1500;background:#fef9c3;color:#854d0e;border-bottom:1px solid #f3e07d;padding:10px 24px;font-size:13px;font-weight:600;text-align:center;">
+  <span style="margin-right:6px;">⚠️</span>
+  Farm setup is incomplete — fill out your farm details to unlock live agent runs.
+  <a href="/static/setup.html" style="color:#7c2d12;text-decoration:underline;font-weight:700;margin-left:8px;">Complete setup →</a>
+</div>
 
 <!-- ── Header ── -->
 <div id="header">
@@ -182,7 +325,9 @@
   <div id="farm-info-chip">
     <span id="farm-name-hdr" style="font-weight:700;color:var(--text);">—</span>
     <span style="color:var(--text3);">·</span>
-    <span id="farm-acres-hdr" style="color:var(--text2);">—</span>
+    <span id="farm-acres-hdr" style="color:var(--text2);">— ac</span>
+    <span style="color:var(--text3);">·</span>
+    <span id="farm-pens-hdr" style="color:var(--text2);">— pens</span>
   </div>
   <nav id="nav">
     <a class="nav-tab" href="/static/dashboard.html">🏠 Overview</a>
@@ -191,8 +336,8 @@
     <span class="nav-tab active">💰 Financial</span>
   </nav>
   <div id="header-right">
-    <a style="padding:7px 15px;border-radius:10px;font-size:12px;font-weight:500;color:var(--text3);text-decoration:none;border:1px solid var(--border);" href="/static/setup.html">⚙ Farm Setup</a>
-    <div id="threat-badge"><span>🔥</span> <span id="hdr-threat">—</span></div>
+    <a id="map-link" href="/static/setup.html"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Farm Setup</a>
+    <div id="threat-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 3z"/></svg><span id="hdr-threat">Loading…</span></div>
   </div>
 </div>
 
@@ -281,15 +426,16 @@
     <div id="programs-table-wrap"><div class="loading">Loading…</div></div>
   </div>
 
+  <!-- Insurance form -->
+  <div id="insurance-card">
+    <div id="insurance-content"><div class="loading">Loading insurance filing…</div></div>
+  </div>
+
 </div>
 
 <!-- ── Emergency bar ── -->
 <div id="emergency-bar">
   <button id="emergency-btn">🚨 <div><div>Emergency mode</div><div style="font-size:11px;font-weight:400;opacity:0.85;">Get help now</div></div></button>
-  <div class="ebar-sep"></div>
-  <button class="ebar-action" id="run-forecaster-btn" onclick="runForecaster()">⚡ Run Forecaster</button>
-  <button class="ebar-action" id="run-livestock-btn" onclick="runLivestock()">🐄 Run Livestock</button>
-  <button class="ebar-action" id="run-crop-btn" onclick="runCrop()">🌾 Run Crop Agent</button>
   <div class="ebar-sep"></div>
   <button class="ebar-action" id="refresh-btn" onclick="refreshAll()">↻ Refresh all agents</button>
   <div class="ebar-right" id="last-updated">Last updated: —</div>
@@ -312,31 +458,195 @@ const COLORS = {
 Chart.defaults.font.family = "'SF Pro Display', system-ui, -apple-system, sans-serif";
 Chart.defaults.color = '#4b5563';
 
-let econData = null, policyData = null;
+let econData = null, policyData = null, insuranceData = null;
+
+const THREAT_PALETTE = {
+  GREEN:     { bg: 'rgba(64,145,108,0.1)',  fg: '#2d6a4f', bd: 'rgba(64,145,108,0.25)' },
+  WATCH:     { bg: 'rgba(243,156,18,0.1)',  fg: '#b45309', bd: 'rgba(243,156,18,0.25)' },
+  WARNING:   { bg: 'rgba(230,126,34,0.12)', fg: '#9a3412', bd: 'rgba(230,126,34,0.3)'  },
+  CRITICAL:  { bg: 'rgba(192,57,43,0.1)',   fg: '#c0392b', bd: 'rgba(192,57,43,0.25)' },
+  EMERGENCY: { bg: 'rgba(127,29,29,0.15)',  fg: '#7f1d1d', bd: 'rgba(127,29,29,0.4)'  },
+};
+function applyThreatColor(level) {
+  const p = THREAT_PALETTE[level] || THREAT_PALETTE.WARNING;
+  const el = document.getElementById('threat-badge');
+  if (el) {
+    el.style.background = p.bg;
+    el.style.color = p.fg;
+    el.style.borderColor = p.bd;
+  }
+}
 
 async function loadAll() {
+  // Setup-incomplete banner
   try {
-    const [eRes, pRes, sRes, profRes] = await Promise.all([
+    const setupRes = await fetch('/api/setup/status');
+    if (setupRes.ok) {
+      const s = await setupRes.json();
+      document.getElementById('setup-banner').style.display = s.complete ? 'none' : 'block';
+    }
+  } catch (_) {}
+
+  try {
+    const [eRes, pRes, sRes, profRes, iRes] = await Promise.all([
       fetch('/api/econ'),
       fetch('/api/policy'),
       fetch('/api/status'),
       fetch('/api/farm-profile'),
+      fetch('/api/insurance/status'),
     ]);
 
     if (eRes.ok)    econData   = await eRes.json();
     if (pRes.ok)    policyData = await pRes.json();
-    if (sRes.ok)    { const s = await sRes.json(); document.getElementById('hdr-threat').textContent = (s.threat_level || '—') + ' Threat'; }
+    if (sRes.ok) {
+      const s = await sRes.json();
+      const lvl = s.threat_level || 'WARNING';
+      document.getElementById('hdr-threat').textContent = lvl + ' Threat';
+      applyThreatColor(lvl);
+    }
     if (profRes.ok) {
       const p = await profRes.json();
       document.getElementById('farm-name-hdr').textContent = p.farm_name || '—';
-      document.getElementById('farm-acres-hdr').textContent = (p.total_acres || '—') + ' ac';
+      document.getElementById('farm-acres-hdr').textContent = (p.total_acres ?? '—') + ' ac';
+      const penCount = Array.isArray(p.pens) ? p.pens.length : 0;
+      document.getElementById('farm-pens-hdr').textContent = penCount + (penCount === 1 ? ' pen' : ' pens');
     }
+    insuranceData = iRes.ok ? await iRes.json() : null;
 
     if (econData)   renderEcon();
     if (policyData) renderPolicy();
+    renderInsurance();
 
   } catch(e) {
     console.error(e);
+  }
+}
+
+function renderInsurance() {
+  const root = document.getElementById('insurance-content');
+  if (!insuranceData || !insuranceData.ok) {
+    root.innerHTML = `
+      <div class="ins-head">
+        <div class="ins-head-left">
+          <div class="ins-icon-wrap" style="background:#fef9c3;color:#854d0e;">📄</div>
+          <div>
+            <h2>USDA Insurance Filing</h2>
+            <p>CCC-576 Notice of Loss — pre-filled from your loss data</p>
+          </div>
+        </div>
+        <span class="ins-status-pill warn">NOT YET GENERATED</span>
+      </div>
+      <div class="ins-empty">
+        Run the pipeline (click <b>↻ Refresh all agents</b> in the bar below) to pre-fill your CCC-576 from current farm and loss data.
+      </div>`;
+    return;
+  }
+
+  const d = insuranceData;
+  const sizeKb = (d.size_bytes / 1024).toFixed(0);
+  const filledAt = new Date(d.filled_at);
+  const filledStr = filledAt.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })
+                  + ' at ' + filledAt.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  const totalFields = d.fields_total || 0;
+  const filledCount = d.fields_filled || 0;
+  const pct = totalFields > 0 ? Math.round(filledCount / totalFields * 100) : 0;
+  const hasFields = totalFields > 0;
+  const fsaShort = (d.fsa_office || '').split(',').slice(0, 2).join(',').trim() || 'Local FSA office';
+  const ageHours = (Date.now() - filledAt.getTime()) / 3600000;
+  const fresh = ageHours < 24;
+
+  root.innerHTML = `
+    <div class="ins-head">
+      <div class="ins-head-left">
+        <div class="ins-icon-wrap">📄</div>
+        <div>
+          <h2>USDA Insurance Filing</h2>
+          <p>${d.form_name} — pre-filled from current farm and loss data</p>
+        </div>
+      </div>
+      <span class="ins-status-pill${fresh ? '' : ' warn'}">${fresh ? 'READY TO FILE' : 'STALE — RE-RUN'}</span>
+    </div>
+
+    <div class="ins-body">
+      <div class="ins-preview">
+        <div class="ins-preview-page">
+          <div class="ins-preview-line full"></div>
+          <div class="ins-preview-line short"></div>
+          <div class="ins-preview-line tiny"></div>
+          <div class="ins-preview-line full"></div>
+          <div class="ins-preview-line short"></div>
+          <div class="ins-preview-line full"></div>
+          <div class="ins-preview-line tiny"></div>
+          <div class="ins-preview-line short"></div>
+          <div class="ins-preview-line full"></div>
+          <div class="ins-preview-line tiny"></div>
+          <div class="ins-preview-line short"></div>
+          <div class="ins-preview-stamp">PRE-FILLED</div>
+        </div>
+        <div class="ins-preview-name">CCC-576</div>
+        <div class="ins-preview-meta">${sizeKb} KB · 2 pages</div>
+      </div>
+
+      <div class="ins-right">
+        <div class="ins-meta-grid">
+          <div class="ins-meta-row">
+            <div class="ins-meta-label">Agency</div>
+            <div class="ins-meta-val" title="${d.agency}">${d.agency}</div>
+          </div>
+          <div class="ins-meta-row">
+            <div class="ins-meta-label">Filing Deadline</div>
+            <div class="ins-meta-val urgent">Within ${d.deadline_days} days of loss</div>
+          </div>
+          <div class="ins-meta-row" style="grid-column:1/-1;">
+            <div class="ins-meta-label">Submit at</div>
+            <div class="ins-meta-val" title="${d.fsa_office || ''}">${fsaShort}</div>
+          </div>
+          <div class="ins-meta-row" style="grid-column:1/-1;">
+            <div class="ins-meta-label">Last generated</div>
+            <div class="ins-meta-val">${filledStr}</div>
+          </div>
+        </div>
+
+        ${hasFields ? `
+        <div class="ins-progress-block">
+          <div class="ins-progress-head">
+            <span class="ins-progress-label">Pre-filled by Insurance Agent</span>
+            <span class="ins-progress-count">${filledCount} / ${totalFields} fields · ${pct}%</span>
+          </div>
+          <div class="ins-progress-bar"><div class="ins-progress-fill" style="width:${pct}%"></div></div>
+          <div class="ins-progress-hint">
+            Pre-filled: farm name, FSA office, FIPS codes, disaster type and dates, planted acreage, per-crop loss values.<br>
+            Left for you: NAP unit numbers, signatures, variety/type, planting period.
+          </div>
+        </div>` : ''}
+
+        <div class="ins-cta-row">
+          <a class="ins-download" href="/api/insurance/pdf" download="ccc_576_filled.pdf">
+            <span style="font-size:16px;">⬇</span> Download CCC-576 PDF
+          </a>
+          <button class="ins-secondary" id="ins-regen-btn" onclick="regenerateInsurance()">↻ Regenerate</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function regenerateInsurance() {
+  const btn = document.getElementById('ins-regen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Regenerating…'; }
+  try {
+    const res = await fetch('/api/insurance/run', { method: 'POST' });
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).detail || ''; } catch (_) {}
+      alert('Regenerate failed: ' + (detail || res.statusText));
+      return;
+    }
+    const sRes = await fetch('/api/insurance/status');
+    if (sRes.ok) { insuranceData = await sRes.json(); renderInsurance(); }
+  } catch(e) {
+    alert('Regenerate: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Regenerate'; }
   }
 }
 
@@ -530,48 +840,27 @@ function renderPolicy() {
     </table>`;
 }
 
-async function runForecaster() {
-  const btn = document.getElementById('run-forecaster-btn');
-  btn.disabled = true; btn.textContent = '⏳ Running...';
-  try {
-    const res = await fetch('/api/run-forecaster', { method: 'POST' });
-    if (!res.ok) { alert('Forecaster error: ' + (await res.json()).detail); return; }
-    await loadAll();
-  } catch(e) { alert('Forecaster: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '⚡ Run Forecaster'; }
-}
-
-async function runLivestock() {
-  const btn = document.getElementById('run-livestock-btn');
-  btn.disabled = true; btn.textContent = '⏳ Running...';
-  try {
-    const res = await fetch('/api/livestock/run', { method: 'POST' });
-    if (!res.ok) { alert('Livestock error: ' + (await res.json()).detail); return; }
-    await loadAll();
-  } catch(e) { alert('Livestock: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '🐄 Run Livestock'; }
-}
-
-async function runCrop() {
-  const btn = document.getElementById('run-crop-btn');
-  btn.disabled = true; btn.textContent = '⏳ Running...';
-  try {
-    const res = await fetch('/api/crop/run', { method: 'POST' });
-    if (!res.ok) { alert('Crop error: ' + (await res.json()).detail); return; }
-    await loadAll();
-  } catch(e) { alert('Crop: ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '🌾 Run Crop Agent'; }
-}
-
 async function refreshAll() {
   const btn = document.getElementById('refresh-btn');
-  btn.disabled = true; btn.textContent = '⏳ Refreshing...';
+  btn.disabled = true; btn.textContent = '⏳ Running pipeline...';
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 240000);
   try {
-    await runForecaster();
-    await runLivestock();
-    await runCrop();
+    const res = await fetch('/api/run-pipeline', { method: 'POST', signal: ctrl.signal });
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).detail || ''; } catch (_) {}
+      alert('Pipeline error: ' + (detail || res.statusText));
+      return;
+    }
+    await loadAll();
     document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-  } finally { btn.disabled = false; btn.textContent = '↻ Refresh all agents'; }
+  } catch(e) {
+    alert('Pipeline: ' + (e.name === 'AbortError' ? 'timed out after 240s' : e.message));
+  } finally {
+    clearTimeout(timer);
+    btn.disabled = false; btn.textContent = '↻ Refresh all agents';
+  }
 }
 
 loadAll().then(() => {

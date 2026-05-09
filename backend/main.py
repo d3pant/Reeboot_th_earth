@@ -425,12 +425,12 @@ def get_farm_profile():
         return JSONResponse(json.load(f))
 
 
-@app.post("/api/run-forecaster")
-async def run_forecaster(
-    lat: float = Query(None, description="Custom location latitude"),
-    lon: float = Query(None, description="Custom location longitude"),
-):
-    """Run a real forecaster cycle using live NASA FIRMS + Open-Meteo data."""
+async def _run_forecaster_cycle(
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+) -> dict:
+    """Run a real forecaster cycle using live NASA FIRMS + Open-Meteo data.
+    Writes status.json and returns the status dict."""
     import math
 
     farm_lat = lat if lat is not None else FARM_LAT
@@ -576,18 +576,119 @@ async def run_forecaster(
     with open(STATUS_JSON, "w") as f:
         json.dump(status, f, indent=2, default=str)
 
-    # Run econ agent in-process after forecaster writes status.json
+    return status
+
+
+@app.post("/api/run-forecaster")
+async def run_forecaster(
+    lat: float = Query(None, description="Custom location latitude"),
+    lon: float = Query(None, description="Custom location longitude"),
+):
+    """Run a real forecaster cycle using live NASA FIRMS + Open-Meteo data."""
+    status = await _run_forecaster_cycle(lat, lon)
+    return JSONResponse(status)
+
+
+def _run_econ_subprocess() -> Optional[dict]:
+    """Run econ agent and return econ_report.json contents (or None on failure).
+    Econ agent reads the latest crop and livestock outputs from disk."""
+    import subprocess
     try:
-        import subprocess as _sp
-        _sp.run(
+        subprocess.run(
             ["python3", "-m", "forecaster.agents.econ_agent"],
             cwd=Path(__file__).parent.parent,
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=60,
         )
     except Exception:
-        pass  # econ agent is best-effort
+        pass  # best-effort; we still try to read whatever econ_report.json exists
+    econ_path = FORECASTER_DIR / "output" / "econ_report.json"
+    if econ_path.exists():
+        try:
+            with open(econ_path) as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
 
-    return JSONResponse(status)
+
+INSURANCE_PDF = FORECASTER_DIR / "output" / "ccc_576_filled.pdf"
+
+
+def _run_insurance_subprocess() -> dict:
+    """Run insurance agent to fill the CCC-576 PDF. Returns metadata dict
+    {"ok": bool, "path": str, "size_bytes": int, "filled_at": iso, "error"?: str}."""
+    import subprocess
+    try:
+        proc = subprocess.run(
+            ["python3", "-m", "forecaster.agents.insurance_agent"],
+            cwd=Path(__file__).parent.parent,
+            capture_output=True, text=True, timeout=60,
+        )
+        if not INSURANCE_PDF.exists():
+            detail = proc.stderr[-500:] if proc.stderr else proc.stdout[-500:] or "No PDF produced"
+            return {"ok": False, "error": detail}
+        st = INSURANCE_PDF.stat()
+        return {
+            "ok": True,
+            "path": str(INSURANCE_PDF),
+            "size_bytes": st.st_size,
+            "filled_at": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "Insurance agent timed out (60s)"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/insurance/status")
+def get_insurance_status():
+    """Return metadata about the filled CCC-576 PDF (or 404 if not generated yet)."""
+    if not INSURANCE_PDF.exists():
+        raise HTTPException(status_code=404, detail="No filled insurance form yet — run the pipeline first")
+    st = INSURANCE_PDF.stat()
+    fields_filled, fields_total = None, None
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(str(INSURANCE_PDF))
+        fields = reader.get_fields() or {}
+        fields_total = len(fields)
+        fields_filled = sum(1 for v in fields.values() if v.get("/V"))
+    except Exception:
+        pass
+    return JSONResponse({
+        "ok": True,
+        "form_name": "USDA CCC-576 — Notice of Loss",
+        "agency": "USDA Farm Service Agency",
+        "fsa_office": "San Diego County FSA Office, 1204 Mission Road, Suite 1, Escondido, CA 92029",
+        "deadline_days": 30,
+        "filename": INSURANCE_PDF.name,
+        "size_bytes": st.st_size,
+        "fields_filled": fields_filled,
+        "fields_total": fields_total,
+        "filled_at": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "download_url": "/api/insurance/pdf",
+    })
+
+
+@app.get("/api/insurance/pdf")
+def download_insurance_pdf():
+    """Stream the filled CCC-576 PDF as a download."""
+    if not INSURANCE_PDF.exists():
+        raise HTTPException(status_code=404, detail="No filled insurance form yet — run the pipeline first")
+    return FileResponse(
+        INSURANCE_PDF,
+        media_type="application/pdf",
+        filename="ccc_576_filled.pdf",
+    )
+
+
+@app.post("/api/insurance/run")
+def run_insurance_agent():
+    """Generate (or regenerate) the filled CCC-576 PDF."""
+    result = _run_insurance_subprocess()
+    if not result.get("ok"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Insurance agent failed"))
+    return JSONResponse(result)
 
 
 # ---------------------------------------------------------------------------
@@ -634,33 +735,38 @@ def get_livestock_status():
         return JSONResponse(json.load(f))
 
 
-@app.post("/api/livestock/run")
-async def run_livestock_agent():
-    """Sync forecaster data then run the livestock evacuation agent."""
+def _run_livestock_subprocess() -> dict:
+    """Sync forecaster data then run livestock agent.
+    Returns livestock_status dict or {"error": "..."}."""
     import subprocess
     _sync_forecaster_to_livestock()
     try:
         result = subprocess.run(
             ["python3", "livestock_agent.py"],
             cwd=LIVESTOCK_DIR,
-            capture_output=True,
-            text=True,
-            timeout=120,
+            capture_output=True, text=True, timeout=180,
         )
         if LIVESTOCK_STATUS_JSON.exists():
             with open(LIVESTOCK_STATUS_JSON) as f:
-                return JSONResponse(json.load(f))
+                return json.load(f)
         detail = result.stderr[-400:] if result.stderr else "No output produced"
-        raise HTTPException(status_code=500, detail=detail)
+        return {"error": detail}
     except subprocess.TimeoutExpired:
         if LIVESTOCK_STATUS_JSON.exists():
             with open(LIVESTOCK_STATUS_JSON) as f:
-                return JSONResponse(json.load(f))
-        return JSONResponse({"status": "timeout", "message": "Agent timed out but may have completed"})
-    except HTTPException:
-        raise
+                return json.load(f)
+        return {"error": "Livestock agent timed out but may have completed"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Livestock agent error: {e}")
+        return {"error": f"Livestock agent error: {e}"}
+
+
+@app.post("/api/livestock/run")
+async def run_livestock_agent():
+    """Sync forecaster data then run the livestock evacuation agent."""
+    result = _run_livestock_subprocess()
+    if isinstance(result, dict) and result.get("error") and "timed out" not in result["error"]:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return JSONResponse(result)
 
 
 # ---------------------------------------------------------------------------
@@ -720,26 +826,19 @@ def get_crop_status():
     return JSONResponse(_filter_crop_output_to_farm(data))
 
 
-@app.post("/api/crop/run")
-async def run_crop_agent():
-    """Feed forecaster status into the crop agent and return field decisions."""
+def _run_crop_subprocess() -> dict:
+    """Run crop agent. Returns normalized crop output dict, or {"error": "..."}."""
     import subprocess
     if not STATUS_JSON.exists():
-        raise HTTPException(status_code=404, detail="Run the forecaster first — no status.json found")
-
+        return {"error": "status.json not found — run forecaster first"}
     env = os.environ.copy()
-
     if not env.get("GROQ_API_KEY"):
-        raise HTTPException(status_code=400, detail="GROQ_API_KEY not set — add it to crop_agent/.env")
-
+        return {"error": "GROQ_API_KEY not set"}
     try:
         proc = subprocess.run(
             ["python3", "crop_agent.py", str(STATUS_JSON)],
             cwd=CROP_DIR,
-            capture_output=True,
-            text=True,
-            timeout=180,
-            env=env,
+            capture_output=True, text=True, timeout=180, env=env,
         )
         outputs = sorted(
             list(CROP_DIR.glob("output_*.json")) + list(CROP_DIR.glob("crop_agent_output_*.json")),
@@ -754,12 +853,64 @@ async def run_crop_agent():
             if erpc.exists():
                 with open(erpc) as f:
                     data["erpc_output"] = json.load(f)
-            return JSONResponse(_filter_crop_output_to_farm(data))
+            return _filter_crop_output_to_farm(data)
         detail = proc.stderr[-500:] if proc.stderr else proc.stdout[-500:] or "No output produced"
-        raise HTTPException(status_code=500, detail=detail)
+        return {"error": detail}
     except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Crop agent timed out (180s)")
-    except HTTPException:
-        raise
+        return {"error": "Crop agent timed out (180s)"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"error": str(e)}
+
+
+@app.post("/api/crop/run")
+async def run_crop_agent():
+    """Feed forecaster status into the crop agent and return field decisions."""
+    result = _run_crop_subprocess()
+    err = result.get("error") if isinstance(result, dict) else None
+    if err:
+        if "GROQ_API_KEY" in err:
+            raise HTTPException(status_code=400, detail=err)
+        if "status.json" in err:
+            raise HTTPException(status_code=404, detail=err)
+        if "timed out" in err:
+            raise HTTPException(status_code=504, detail=err)
+        raise HTTPException(status_code=500, detail=err)
+    return JSONResponse(result)
+
+
+# ---------------------------------------------------------------------------
+# End-to-end pipeline
+# ---------------------------------------------------------------------------
+
+@app.post("/api/run-pipeline")
+async def run_pipeline(
+    lat: float = Query(None, description="Custom location latitude"),
+    lon: float = Query(None, description="Custom location longitude"),
+):
+    """End-to-end run: forecaster → (crop ‖ livestock) → econ.
+    Returns combined report. Long-running (~120-180s)."""
+    import asyncio
+
+    forecaster_status = await _run_forecaster_cycle(lat, lon)
+
+    crop_result, livestock_result = await asyncio.gather(
+        asyncio.to_thread(_run_crop_subprocess),
+        asyncio.to_thread(_run_livestock_subprocess),
+        return_exceptions=True,
+    )
+    if isinstance(crop_result, BaseException):
+        crop_result = {"error": str(crop_result)}
+    if isinstance(livestock_result, BaseException):
+        livestock_result = {"error": str(livestock_result)}
+
+    econ_result = _run_econ_subprocess()
+    insurance_result = _run_insurance_subprocess()
+
+    return JSONResponse({
+        "forecaster": forecaster_status,
+        "crop": crop_result,
+        "livestock": livestock_result,
+        "econ": econ_result,
+        "insurance": insurance_result,
+        "data_sources": (econ_result or {}).get("data_sources"),
+    })

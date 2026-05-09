@@ -12,8 +12,12 @@ venv/
 # Runtime outputs
 crop_agent/crop_agent_output_*.json
 crop_agent/crop_agent_raw_*.txt
+crop_agent/output_*.json
 crop_agent/output_to_erpc.json
 forecaster/output/
+
+# OS metadata
+.DS_Store
 
 # Credentials
 config/credentials.json

@@ -101,23 +101,30 @@ MOCK_CROP_DATA = {
 
 def _load_crop_data() -> tuple[dict, str]:
     """Load crop agent output. Returns (data, source) where source is 'live' or 'mock'."""
-    outputs = sorted(CROP_AGENT_DIR.glob("crop_agent_output_*.json"))
-    if outputs:
+    candidates = (
+        list(CROP_AGENT_DIR.glob("output_*.json"))
+        + list(CROP_AGENT_DIR.glob("crop_agent_output_*.json"))
+    )
+    candidates = [p for p in candidates if "raw" not in p.name and "erpc" not in p.name]
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    if candidates:
         try:
-            with open(outputs[-1]) as f:
+            with open(candidates[0]) as f:
                 raw = json.load(f)
-            # Crop agent uses different key names — remap to econ agent's internal schema
+            # Accept both raw task1/2/3/4 keys (on-disk) and normalized descriptive keys
             data = {
-                "task4": raw.get("field_decisions", []),
-                "task1": raw.get("fire_reduction", []),
-                "task2": raw.get("economic_impact", {}),
-                "task3": raw.get("hydration_strategy", []),
+                "task4": raw.get("field_decisions") or raw.get("task4", []),
+                "task1": raw.get("fire_reduction") or raw.get("task1", []),
+                "task2": raw.get("economic_impact") or raw.get("task2", {}),
+                "task3": raw.get("hydration_strategy") or raw.get("task3", []),
             }
-            if data["task2"].get("crop_destructions"):
-                logger.info("Loaded crop data from %s", outputs[-1].name)
+            # Treat as live whenever the file parsed and has the expected schema —
+            # an empty crop_destructions list is a valid "no crops at risk" answer.
+            if isinstance(data["task2"], dict) and "crop_destructions" in data["task2"]:
+                logger.info("Loaded crop data from %s", candidates[0].name)
                 return data, "live"
         except Exception as e:
-            logger.warning("Failed to load crop agent output: %s", e)
+            logger.warning("Failed to load %s: %s", candidates[0].name, e)
     logger.warning("No crop agent output found — using MOCK_CROP_DATA")
     return MOCK_CROP_DATA, "mock"
 

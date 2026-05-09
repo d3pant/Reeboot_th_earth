@@ -37,6 +37,9 @@ FORMS_DIR = Path(__file__).parent.parent / "forms"
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 
+REPO_ROOT = Path(__file__).parent.parent.parent
+CROP_AGENT_DIR = REPO_ROOT / "crop_agent"
+
 CCC_576_BLANK = FORMS_DIR / "ccc_576.pdf"
 STATUS_JSON = OUTPUT_DIR / "status.json"
 ECON_REPORT = OUTPUT_DIR / "econ_report.json"
@@ -62,6 +65,29 @@ def _load_json(path: Path, fallback: dict) -> dict:
     except Exception:
         logger.warning("Could not load %s — using fallback", path.name)
         return fallback
+
+
+def _load_live_crop_destructions() -> Optional[list]:
+    """Read crop_destructions from the latest crop agent output, mirroring econ's loader.
+    Returns the list (possibly empty if the live result is 'no destructions') or None if
+    no live crop output file exists at all."""
+    candidates = (
+        list(CROP_AGENT_DIR.glob("output_*.json"))
+        + list(CROP_AGENT_DIR.glob("crop_agent_output_*.json"))
+    )
+    candidates = [p for p in candidates if "raw" not in p.name and "erpc" not in p.name]
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    if candidates:
+        try:
+            with open(candidates[0]) as f:
+                raw = json.load(f)
+            t2 = raw.get("economic_impact") or raw.get("task2") or {}
+            destructions = t2.get("crop_destructions", [])
+            logger.info("Loaded %d crop_destructions from %s", len(destructions), candidates[0].name)
+            return destructions
+        except Exception as e:
+            logger.warning("Failed to read live crop output: %s", e)
+    return None
 
 
 MOCK_STATUS = {
@@ -321,12 +347,22 @@ class InsuranceAgent:
         status = _load_json(self.status_path, MOCK_STATUS)
         econ = _load_json(self.econ_path, MOCK_ECON)
 
-        # If econ_report.json doesn't have crop_destructions yet
-        # (econ agent sources from action_queue, not task2 directly),
-        # fall back to mock so form still renders
+        # Insurance form needs per-crop destructions. Econ report has aggregate
+        # exposure, not the destruction list — pull that from the latest crop
+        # agent output (same source econ uses), and only fall back to mock if
+        # neither econ nor live crop data has anything.
         if "crop_destructions" not in econ:
-            logger.warning("econ_report.json has no crop_destructions — using mock crop data")
-            econ["crop_destructions"] = MOCK_ECON["crop_destructions"]
+            live = _load_live_crop_destructions()
+            if live is None:
+                # No live crop output exists — use mock so the form still renders
+                self.crop_source = "mock"
+                econ["crop_destructions"] = MOCK_ECON["crop_destructions"]
+            else:
+                # Live data exists; an empty list is a legitimate "no crops at risk"
+                self.crop_source = "live"
+                econ["crop_destructions"] = live
+        else:
+            self.crop_source = "econ_report"
 
         return fill_ccc576(self.farm_config, status, econ, self.output_path)
 

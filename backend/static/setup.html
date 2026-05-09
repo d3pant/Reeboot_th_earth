@@ -6,90 +6,164 @@
   <title>Farm Setup — Reeboot the Earth</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    :root {
+      --green:        #2d6a4f;
+      --green2:       #40916c;
+      --green-light:  #d8f3dc;
+      --fire:         #c0392b;
+      --fire2:        #e74c3c;
+      --orange:       #e67e22;
+      --amber:        #f39c12;
+      --cream:        #faf9f5;
+      --card:         #ffffff;
+      --border:       #e8e6e0;
+      --text:         #1a1a1a;
+      --text2:        #5a5a5a;
+      --text3:        #9a9a9a;
+      --radius:       14px;
+      --shadow:       0 2px 12px rgba(0,0,0,0.07);
+    }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: #080808; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    body { font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
 
     /* ── Top bar ── */
-    .topbar { width: 100%; padding: 0 32px; height: 52px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(10,10,10,0.9); position: sticky; top: 0; z-index: 100; }
-    .topbar h1 { font-size: 15px; font-weight: 600; color: #fff; }
-    .topbar span { font-size: 12px; color: #555; }
+    .topbar {
+      width: 100%; padding: 0 24px; height: 56px;
+      display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid var(--border); background: var(--card);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topbar #logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--green); text-decoration: none; }
+    .topbar #logo span { font-size: 22px; }
+    .topbar .crumb { font-size: 12px; color: var(--text3); margin-left: 8px; padding-left: 12px; border-left: 1px solid var(--border); }
 
     /* ── Step indicator ── */
     .steps { display: flex; gap: 0; margin: 36px 0 0; }
     .step-dot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-    .step-dot .circle { width: 28px; height: 28px; border-radius: 50%; background: #1a1a1a; border: 2px solid #2a2a2a; color: #444; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-    .step-dot.active .circle { background: #e74c3c; border-color: #e74c3c; color: #fff; }
-    .step-dot.done .circle { background: #00cc55; border-color: #00cc55; color: #fff; }
-    .step-dot .label { font-size: 10px; color: #444; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
-    .step-dot.active .label { color: #aaa; }
-    .step-line { width: 60px; height: 2px; background: #1a1a1a; align-self: center; margin: 0 4px; margin-bottom: 22px; transition: background 0.2s; }
-    .step-line.done { background: #00cc55; }
+    .step-dot .circle {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--card); border: 2px solid var(--border); color: var(--text3);
+      font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+      box-shadow: var(--shadow);
+    }
+    .step-dot.active .circle { background: var(--green); border-color: var(--green); color: #fff; }
+    .step-dot.done .circle { background: var(--green2); border-color: var(--green2); color: #fff; }
+    .step-dot .label { font-size: 10px; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+    .step-dot.active .label { color: var(--text); font-weight: 600; }
+    .step-line { width: 64px; height: 2px; background: var(--border); align-self: center; margin: 0 6px 22px; transition: background 0.2s; }
+    .step-line.done { background: var(--green2); }
 
     /* ── Card ── */
-    .card { width: 100%; max-width: 680px; background: #111; border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 32px; margin: 28px 0 48px; }
-    .card h2 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 6px; }
-    .card .sub { font-size: 13px; color: #555; margin-bottom: 28px; }
+    .card {
+      width: 100%; max-width: 680px;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 32px; margin: 28px 0 48px; box-shadow: var(--shadow);
+    }
+    .card h2 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; letter-spacing: -0.01em; }
+    .card .sub { font-size: 13px; color: var(--text2); margin-bottom: 28px; }
 
     /* ── Form elements ── */
     .field-group { margin-bottom: 20px; }
-    .field-group label { display: block; font-size: 11px; color: #555; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 7px; }
+    .field-group label {
+      display: block; font-size: 10px; color: var(--text3);
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 7px; font-weight: 700;
+    }
     input[type="text"], input[type="number"], input[type="date"], select {
-      width: 100%; background: #0d0d0d; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-      color: #e0e0e0; padding: 10px 13px; font-size: 14px; outline: none; transition: border-color 0.15s;
+      width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); padding: 11px 13px; font-size: 14px; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
       font-family: inherit; -webkit-appearance: none;
     }
-    input:focus, select:focus { border-color: rgba(231,76,60,0.5); }
-    select option { background: #111; }
+    input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(45,106,79,0.12); }
+    select { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a9a9a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
 
     .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 
     /* ── Map picker ── */
-    #location-map { width: 100%; height: 240px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); margin-top: 8px; }
-    .map-hint { font-size: 11px; color: #444; margin-top: 6px; }
+    #location-map { width: 100%; height: 260px; border-radius: 12px; border: 1px solid var(--border); margin-top: 8px; }
+    .map-hint { font-size: 11px; color: var(--text3); margin-top: 6px; }
 
     /* ── Dynamic list items ── */
     .item-list { display: flex; flex-direction: column; gap: 12px; }
-    .item-card { background: #0d0d0d; border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 16px; position: relative; }
-    .item-card .remove-btn { position: absolute; top: 12px; right: 12px; background: none; border: none; color: #333; cursor: pointer; font-size: 16px; line-height: 1; transition: color 0.15s; }
-    .item-card .remove-btn:hover { color: #e74c3c; }
-    .item-card h4 { font-size: 12px; color: #555; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px; }
+    .item-card {
+      background: var(--cream); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px; position: relative;
+    }
+    .item-card .remove-btn {
+      position: absolute; top: 12px; right: 12px;
+      background: none; border: none; color: var(--text3); cursor: pointer;
+      font-size: 16px; line-height: 1; transition: color 0.15s; padding: 4px;
+    }
+    .item-card .remove-btn:hover { color: var(--fire); }
+    .item-card h4 {
+      font-size: 11px; color: var(--text3); font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px;
+    }
 
-    .add-btn { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.12); border-radius: 8px; color: #555; padding: 10px 16px; cursor: pointer; font-size: 13px; width: 100%; justify-content: center; transition: all 0.15s; margin-top: 10px; font-family: inherit; }
-    .add-btn:hover { background: rgba(255,255,255,0.07); color: #aaa; border-color: rgba(255,255,255,0.2); }
+    .add-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--card); border: 1.5px dashed var(--border); border-radius: 10px;
+      color: var(--text2); padding: 12px 16px; cursor: pointer; font-size: 13px; font-weight: 600;
+      width: 100%; justify-content: center; transition: all 0.15s; margin-top: 10px; font-family: inherit;
+    }
+    .add-btn:hover { background: var(--green-light); color: var(--green); border-color: var(--green2); }
 
     /* ── Navigation ── */
     .nav { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; }
-    .btn-back { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #aaa; padding: 10px 22px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit; transition: all 0.15s; }
-    .btn-back:hover { background: rgba(255,255,255,0.05); color: #fff; }
-    .btn-next { background: #e74c3c; border: none; color: #fff; padding: 10px 28px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; transition: all 0.15s; }
-    .btn-next:hover { background: #c0392b; }
-    .btn-next:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-back {
+      background: transparent; border: 1px solid var(--border); color: var(--text2);
+      padding: 10px 22px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 500;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .btn-back:hover { background: var(--cream); color: var(--text); }
+    .btn-next {
+      background: var(--green); border: none; color: #fff;
+      padding: 10px 28px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600;
+      font-family: inherit; transition: all 0.15s; box-shadow: 0 2px 8px rgba(45,106,79,0.25);
+    }
+    .btn-next:hover { background: #265d44; }
+    .btn-next:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 
     /* ── Summary ── */
     .summary-section { margin-bottom: 20px; }
-    .summary-section h3 { font-size: 11px; color: #444; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; }
-    .summary-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
-    .summary-row .sk { color: #666; }
-    .summary-row .sv { color: #ccc; }
-    .chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin: 2px; }
-    .chip.cattle { background: rgba(220,38,38,0.2); color: #f87171; }
-    .chip.horse { background: rgba(234,88,12,0.2); color: #fb923c; }
-    .chip.sheep { background: rgba(37,99,235,0.2); color: #60a5fa; }
-    .chip.pig { background: rgba(147,51,234,0.2); color: #c084fc; }
-    .chip.goat { background: rgba(22,163,74,0.2); color: #4ade80; }
-    .chip.crop { background: rgba(234,179,8,0.15); color: #fcd34d; }
+    .summary-section h3 {
+      font-size: 10px; color: var(--text3); font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px;
+      border-bottom: 1px solid var(--border); padding-bottom: 8px;
+    }
+    .summary-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+    .summary-row .sk { color: var(--text3); }
+    .summary-row .sv { color: var(--text); font-weight: 500; }
+    .chip {
+      display: inline-block; padding: 3px 10px; border-radius: 14px;
+      font-size: 11px; font-weight: 600; margin: 2px;
+      background: var(--green-light); color: var(--green);
+    }
+    .chip.cattle { background: rgba(220,38,38,0.1); color: #b91c1c; }
+    .chip.horse  { background: rgba(234,88,12,0.1); color: #c2410c; }
+    .chip.sheep  { background: rgba(37,99,235,0.1); color: #1d4ed8; }
+    .chip.pig    { background: rgba(147,51,234,0.1); color: #6d28d9; }
+    .chip.goat   { background: rgba(22,163,74,0.1); color: var(--green); }
+    .chip.crop   { background: rgba(234,179,8,0.12); color: #854d0e; }
 
     .success-icon { font-size: 52px; text-align: center; margin-bottom: 16px; }
-    .launch-btn { width: 100%; background: #e74c3c; border: none; color: #fff; padding: 14px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 20px; transition: background 0.15s; letter-spacing: 0.02em; }
-    .launch-btn:hover { background: #c0392b; }
+    .launch-btn {
+      width: 100%; background: var(--green); border: none; color: #fff;
+      padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 700;
+      cursor: pointer; font-family: inherit; margin-top: 20px;
+      transition: background 0.15s; letter-spacing: 0.02em;
+      box-shadow: 0 4px 14px rgba(45,106,79,0.3);
+    }
+    .launch-btn:hover { background: #265d44; }
   </style>
 </head>
 <body>
 
 <div class="topbar">
-  <h1>🔥 Reeboot the Earth</h1>
-  <span>Farm Setup</span>
+  <a id="logo" href="/"><span>🌱</span> Reeboot</a>
+  <span class="crumb">Farm Setup</span>
 </div>
 
 <div class="steps" id="steps">
@@ -181,13 +255,13 @@ function step1Html() {
 function initMap() {
   if (mapInstance) { mapInstance.remove(); mapInstance = null; }
   mapInstance = L.map("location-map", { zoomControl: true }).setView([state.lat, state.lon], 12);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     attribution: "© OpenStreetMap © CARTO", maxZoom: 18,
   }).addTo(mapInstance);
 
   const icon = L.divIcon({
     className: "",
-    html: `<div style="width:14px;height:14px;border-radius:50%;background:#00cc55;border:2px solid #fff;box-shadow:0 0 8px #00cc5588;"></div>`,
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:#40916c;border:2px solid #fff;box-shadow:0 2px 8px rgba(45,106,79,0.5);"></div>`,
     iconSize: [14,14], iconAnchor: [7,7],
   });
   markerInstance = L.marker([state.lat, state.lon], { icon, draggable: true }).addTo(mapInstance);
@@ -392,11 +466,11 @@ function setAgentStatus(agent, status) {
   const row  = document.getElementById("prog-" + agent);
   if (!icon || !row) return;
   const map = {
-    running: { t: "⏳", c: "#aaa" },
-    done:    { t: "✓",  c: "#00cc55" },
-    error:   { t: "✗",  c: "#e74c3c" },
+    running: { t: "⏳", c: "var(--text2)" },
+    done:    { t: "✓",  c: "var(--green)" },
+    error:   { t: "✗",  c: "var(--fire)" },
   };
-  const s = map[status] || { t: "○", c: "#555" };
+  const s = map[status] || { t: "○", c: "var(--text3)" };
   icon.textContent = s.t;
   row.style.color = s.c;
 }
@@ -435,18 +509,18 @@ async function submitSetup() {
       <p class="sub" style="text-align:center;margin-bottom:24px;" id="agent-sub">
         Fetching fire data and analysing your farm. Takes ~30 seconds.
       </p>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
-        <div id="prog-forecaster" style="display:flex;align-items:center;gap:12px;font-size:13px;color:#555;padding:10px 14px;background:#161616;border-radius:8px;border:1px solid rgba(255,255,255,0.06);">
-          <span id="icon-forecaster" style="font-size:16px;width:20px;text-align:center;">○</span>
-          <div><div style="font-weight:600;color:#ccc;">Forecaster</div><div style="font-size:11px;color:#555;margin-top:2px;">Fire risk · weather · spread model</div></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+        <div id="prog-forecaster" style="display:flex;align-items:center;gap:12px;font-size:13px;color:var(--text2);padding:12px 14px;background:var(--cream);border-radius:10px;border:1px solid var(--border);">
+          <span id="icon-forecaster" style="font-size:16px;width:20px;text-align:center;color:var(--text3);">○</span>
+          <div><div style="font-weight:600;color:var(--text);">Forecaster</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Fire risk · weather · spread model</div></div>
         </div>
-        <div id="prog-crop" style="display:flex;align-items:center;gap:12px;font-size:13px;color:#555;padding:10px 14px;background:#161616;border-radius:8px;border:1px solid rgba(255,255,255,0.06);">
-          <span id="icon-crop" style="font-size:16px;width:20px;text-align:center;">○</span>
-          <div><div style="font-weight:600;color:#ccc;">Crop Agent</div><div style="font-size:11px;color:#555;margin-top:2px;">Field decisions · economic impact</div></div>
+        <div id="prog-crop" style="display:flex;align-items:center;gap:12px;font-size:13px;color:var(--text2);padding:12px 14px;background:var(--cream);border-radius:10px;border:1px solid var(--border);">
+          <span id="icon-crop" style="font-size:16px;width:20px;text-align:center;color:var(--text3);">○</span>
+          <div><div style="font-weight:600;color:var(--text);">Crop Agent</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Field decisions · economic impact</div></div>
         </div>
-        <div id="prog-livestock" style="display:flex;align-items:center;gap:12px;font-size:13px;color:#555;padding:10px 14px;background:#161616;border-radius:8px;border:1px solid rgba(255,255,255,0.06);">
-          <span id="icon-livestock" style="font-size:16px;width:20px;text-align:center;">○</span>
-          <div><div style="font-weight:600;color:#ccc;">Livestock Agent</div><div style="font-size:11px;color:#555;margin-top:2px;">Evacuation priority · transport plan</div></div>
+        <div id="prog-livestock" style="display:flex;align-items:center;gap:12px;font-size:13px;color:var(--text2);padding:12px 14px;background:var(--cream);border-radius:10px;border:1px solid var(--border);">
+          <span id="icon-livestock" style="font-size:16px;width:20px;text-align:center;color:var(--text3);">○</span>
+          <div><div style="font-weight:600;color:var(--text);">Livestock Agent</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Evacuation priority · transport plan</div></div>
         </div>
       </div>
       <div id="agent-launch-area"></div>`;

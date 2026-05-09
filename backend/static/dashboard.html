@@ -299,6 +299,13 @@
 </head>
 <body>
 
+<!-- ── Setup-incomplete banner (hidden by default; shown if /api/setup/status returns incomplete) ── -->
+<div id="setup-banner" style="display:none;position:sticky;top:0;z-index:1500;background:#fef9c3;color:#854d0e;border-bottom:1px solid #f3e07d;padding:10px 24px;font-size:13px;font-weight:600;text-align:center;">
+  <span style="margin-right:6px;">⚠️</span>
+  Farm setup is incomplete — fill out your farm details to unlock live agent runs.
+  <a href="/static/setup.html" style="color:#7c2d12;text-decoration:underline;font-weight:700;margin-left:8px;">Complete setup →</a>
+</div>
+
 <!-- ── Header ── -->
 <div id="header">
   <a id="logo" href="/"><span>🌱</span> Reeboot</a>
@@ -416,24 +423,24 @@
 <!-- ── Bottom grid ── -->
 <div id="bottom">
 
-  <!-- What You Have -->
+  <!-- Act Now (was Best Actions Right Now) -->
   <div class="bottom-card">
-    <div class="bc-title"><span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> What You Have</div>
+    <div class="bc-title" style="justify-content:space-between;">
+      <span><span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> Act Now</span>
+      <span style="font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;background:var(--cream);padding:3px 10px;border-radius:20px;letter-spacing:0;">See all</span>
+    </div>
+    <div id="actions-list"><div class="loading">Loading recommendations…</div></div>
+    <div class="action-note" id="action-note" style="display:none;"></div>
+  </div>
+
+  <!-- Your Farm (was What You Have) -->
+  <div class="bottom-card">
+    <div class="bc-title"><span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> Your Farm</div>
     <div id="assets-list"><div class="loading">Loading farm data…</div></div>
     <div class="total-row">
       <span>Total farm value</span>
       <span id="total-farm-value">$—</span>
     </div>
-  </div>
-
-  <!-- Best Actions -->
-  <div class="bottom-card">
-    <div class="bc-title" style="justify-content:space-between;">
-      <span><span class="bc-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span> Best Actions Right Now</span>
-      <span style="font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;background:var(--cream);padding:3px 10px;border-radius:20px;letter-spacing:0;">See all</span>
-    </div>
-    <div id="actions-list"><div class="loading">Loading recommendations…</div></div>
-    <div class="action-note" id="action-note" style="display:none;"></div>
   </div>
 
   <!-- What's at Risk -->
@@ -552,6 +559,15 @@ const THREAT_META = {
 
 // ── Load all data in parallel ──
 async function loadAll() {
+  // Setup-incomplete banner
+  try {
+    const sRes = await fetch("/api/setup/status");
+    if (sRes.ok) {
+      const s = await sRes.json();
+      document.getElementById("setup-banner").style.display = s.complete ? "none" : "block";
+    }
+  } catch (_) {}
+
   const [fRes, lRes, cRes, firesRes, profRes, econRes] = await Promise.allSettled([
     fetch("/api/status"),
     fetch("/api/livestock/status"),
@@ -1332,11 +1348,26 @@ function renderLivestockPanel() {
 
 async function refreshAll() {
   const btn = document.querySelector('.ebar-action[onclick="refreshAll()"]');
-  if (btn) { btn.disabled = true; btn.textContent = "⏳ Refreshing..."; }
-  await runForecaster();
-  await runLivestock();
-  await runCrop();
-  if (btn) { btn.disabled = false; btn.textContent = "↻ Refresh all agents"; }
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Running pipeline..."; }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 240000);
+  try {
+    const farmLat = farmProfile?.centroid?.lat ?? forecastData?.farm_lat ?? 33.2232;
+    const farmLon = farmProfile?.centroid?.lon ?? forecastData?.farm_lon ?? -117.1611;
+    const res = await fetch(`/api/run-pipeline?lat=${farmLat}&lon=${farmLon}`, { method: "POST", signal: ctrl.signal });
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.json()).detail || ""; } catch (_) {}
+      alert("Pipeline error: " + (detail || res.statusText));
+      return;
+    }
+    await loadAll();
+  } catch(e) {
+    alert("Pipeline: " + (e.name === "AbortError" ? "timed out after 240s" : e.message));
+  } finally {
+    clearTimeout(timer);
+    if (btn) { btn.disabled = false; btn.textContent = "↻ Refresh all agents"; }
+  }
 }
 
 // Boot
