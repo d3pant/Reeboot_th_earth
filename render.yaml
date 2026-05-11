@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: reeboot-the-earth
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/setup/status
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: NASA_FIRMS_API_KEY
+        sync: false
+      - key: NASA_EARTHDATA_USERNAME
+        sync: false
+      - key: NASA_EARTHDATA_PASSWORD
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: USDA_NASS_API_KEY
+        sync: false
+      - key: OPENET_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SDGE_FPI_API_KEY
+        sync: false
+      - key: PYRECAST_API_KEY
+        sync: false
+      - key: WIFIRE_API_KEY
+        sync: false
+      - key: N8N_WEBHOOK_URL
+        sync: false
