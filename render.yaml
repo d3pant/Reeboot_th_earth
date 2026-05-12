@@ -23,11 +23,5 @@ services:
         sync: false
       - key: TAVILY_API_KEY
         sync: false
-      - key: SDGE_FPI_API_KEY
-        sync: false
-      - key: PYRECAST_API_KEY
-        sync: false
-      - key: WIFIRE_API_KEY
-        sync: false
       - key: N8N_WEBHOOK_URL
         sync: false
