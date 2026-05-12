@@ -1,11 +1,11 @@
 {
   "farm_id": "farm_001",
-  "farm_name": "My Farm",
+  "farm_name": "Misa Farma",
   "centroid": {
-    "lat": 33.1253,
-    "lon": -116.6462
+    "lat": 33.5643,
+    "lon": -117.6196
   },
-  "total_acres": 100.0,
+  "total_acres": 10.0,
   "pens": [
     {
       "pen_id": "pen_001",
@@ -17,8 +17,22 @@
       "health_status": "healthy",
       "avg_market_value_usd": 1450,
       "centroid": {
-        "lat": 33.12637,
-        "lon": -116.64664
+        "lat": 33.56464,
+        "lon": -117.61974
+      }
+    },
+    {
+      "pen_id": "pen_002",
+      "zone": "Z1",
+      "name": "Sheep Pen 2",
+      "species": "sheep",
+      "count": 20,
+      "age_distribution": "adult",
+      "health_status": "healthy",
+      "avg_market_value_usd": 350,
+      "centroid": {
+        "lat": 33.56472,
+        "lon": -117.61946
       }
     }
   ],

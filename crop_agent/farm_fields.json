@@ -1,16 +1,26 @@
 {
   "farm_id": "farm_001",
-  "farm_name": "gg",
+  "farm_name": "Misa Farma",
   "fields": [
     {
       "field_id": "F1",
       "crop_category": "avocado",
       "location": {
-        "lat": 34.1557,
-        "lon": -112.8755
+        "lat": 33.5673,
+        "lon": -117.6216
       },
       "size_acres": 20.0,
       "planting_date": "2023-01-01"
+    },
+    {
+      "field_id": "F2",
+      "crop_category": "tomatoes",
+      "location": {
+        "lat": 33.5643,
+        "lon": -117.6176
+      },
+      "size_acres": 5.0,
+      "planting_date": "2026-05-09"
     }
   ]
 }
